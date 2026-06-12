@@ -15,23 +15,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const product = await prisma.product.findUnique({ where: { id: params.id } });
   if (!product) return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
 
-  const prompt = `Sen bir e-ticaret sitesi için test verisi oluşturuyorsun.
+  const prompt = `You are generating test review data for an e-commerce store.
 
-Ürün: "${product.title}"
-Platform: ${product.platform ?? "Dijital"}
-Bölge: ${product.region ?? "Global"}
+Product: "${product.title}"
+Platform: ${product.platform ?? "Digital"}
+Region: ${product.region ?? "Global"}
 
-Bu ürün için ${n} adet GERÇEKÇI müşteri yorumu üret. Yorumlar Türkçe olsun.
-Farklı puanlar ver (çoğunlukla 4-5, 1-2 tane 3 veya daha az olabilir).
-Her yorum farklı bir müşteriden geliyormuş gibi görünsün.
+Generate ${n} realistic customer reviews in ENGLISH for this product.
+Use varied ratings (mostly 4-5 stars, occasionally 3 or lower).
+Each review should feel like it's from a different real customer.
+Use common English first names with last initial (e.g. "James K.", "Sarah M.").
 
-Yanıtı SADECE aşağıdaki JSON formatında ver, başka hiçbir şey yazma:
+Reply with ONLY valid JSON in the format below, nothing else:
 [
   {
-    "author": "Ahmet Y.",
+    "author": "James K.",
     "rating": 5,
-    "title": "Harika ürün",
-    "body": "Yorum metni buraya..."
+    "title": "Great product",
+    "body": "Review text here..."
   }
 ]`;
 
