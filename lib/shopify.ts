@@ -105,7 +105,8 @@ export type PublishInput = {
   images: string[];
   seoTitle?: string | null;
   seoDescription?: string | null;
-  metafields: { key: string; value: string }[];
+  metafields: { key: string; value: string; namespace?: string; type?: string }[];
+  templateSuffix?: string | null;
   existingShopifyId?: string | null;
   variants?: { title: string; sku: string; price: number; options: string[] }[];
   optionNames?: string[];
@@ -117,7 +118,7 @@ export type PublishResult = { productId: string; created: boolean };
 export async function publishProduct(input: PublishInput): Promise<PublishResult> {
   const metafields = input.metafields
     .filter(m => m.value != null && m.value !== "")
-    .map(m => ({ namespace: "engrace", key: m.key, type: "multi_line_text_field", value: String(m.value).slice(0, 60000) }));
+    .map(m => ({ namespace: m.namespace ?? "engrace", key: m.key, type: m.type ?? "multi_line_text_field", value: String(m.value).slice(0, 60000) }));
 
   const productSetInput: Record<string, unknown> = {
     title: input.title,
@@ -128,6 +129,7 @@ export async function publishProduct(input: PublishInput): Promise<PublishResult
     status: input.status,
     handle: slugify(input.title),
     seo: { title: input.seoTitle ?? input.title, description: input.seoDescription ?? undefined },
+    ...(input.templateSuffix ? { templateSuffix: input.templateSuffix } : {}),
     metafields,
     files: input.images.slice(0, 10).map(url => ({ originalSource: url, contentType: "IMAGE" })),
   };
@@ -178,6 +180,26 @@ export async function publishProduct(input: PublishInput): Promise<PublishResult
   }
 
   return { productId, created: !input.existingShopifyId };
+}
+
+// productSet, tanımı olmayan metafield'ları sessizce düşürebiliyor.
+// srd.* gibi tanımsız metafield'ları garanti yazmak için ayrı metafieldsSet kullan.
+export async function setMetafields(
+  ownerId: string,
+  fields: { namespace: string; key: string; type: string; value: string | null | undefined }[]
+) {
+  const metafields = fields
+    .filter(m => m.value != null && String(m.value).trim() !== "")
+    .map(m => ({ ownerId, namespace: m.namespace, key: m.key, type: m.type, value: String(m.value).slice(0, 60000) }));
+  if (!metafields.length) return;
+  const data = await gql<{ metafieldsSet: { userErrors: { field: string[]; message: string }[] } }>(
+    `mutation($m: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $m) { metafields { key } userErrors { field message } }
+    }`,
+    { m: metafields }
+  );
+  const errs = data.metafieldsSet.userErrors;
+  if (errs?.length) throw new Error(`Metafield hatası: ${errs.map(e => e.message).join("; ")}`);
 }
 
 export async function setInventory(inventoryItemId: string, qty: number) {

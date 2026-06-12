@@ -6,7 +6,7 @@ import { getSettings, type StockRule } from "./settings";
 import { computeShopifyStock } from "./stock";
 import { computePrice, resolveRule } from "./pricing";
 import { jget, jput } from "./json";
-import { publishProduct, updateVariantPrice, getVariantInventoryItem, setInventory, ensureCollection, addToCollections, shopifyConfigured } from "./shopify";
+import { publishProduct, setMetafields, updateVariantPrice, getVariantInventoryItem, setInventory, ensureCollection, addToCollections, shopifyConfigured } from "./shopify";
 
 // ── Açıklama HTML temizle + özellik tablosu ekle ─────────────
 function cleanHtml(html: string): string {
@@ -234,6 +234,37 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
     ...(p.region ? [p.region] : []),
   ])).slice(0, 50);
 
+  // ── SRD ürün sayfası metafield'ları (tema namespace "srd" okur) ──
+  const pcPlatforms = ["steam", "origin", "uplay", "ubisoft", "epic", "gog", "battle", "ea app", "rockstar"];
+  const isPc = pcPlatforms.some(x => (p.platform ?? "").toLowerCase().includes(x));
+  const isAccount = /account/i.test(`${p.licenseType ?? ""} ${p.activationType ?? ""} ${p.deliveryType ?? ""}`);
+  const regionRaw = (p.region ?? "").trim();
+  const srdRegion = /free|global/i.test(regionRaw)
+    ? "Global"
+    : regionRaw.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  const srdLicense = (p.licenseType ?? "").trim() || (isAccount ? "Account" : "Key");
+  const srdDelivery = /smm/i.test(p.deliveryType ?? "") ? "Service" : "Email";
+
+  const srdActivation = isAccount
+    ? "Check your inbox|Open the delivery email — your account details are inside. Check spam if you don't see it.\nSign in|Launch the platform client and sign in with the provided details.\nSecure the account|Follow the instructions to set your own email and enable 2FA.\nDownload & play|Install from your library and start playing."
+    : "Complete your order|Pay securely — your key is generated instantly.\nCheck your email|Your key arrives by email within seconds. Check spam too.\nRedeem the key|Open the platform client and redeem the key in your library.\nDownload & play|Install and enjoy.";
+  const srdFaq =
+    "How fast will I receive my order?|Delivery is automated — your details arrive by email within seconds of payment.\n" +
+    "Is this region locked?|Check the Region spec above. Region-free products can be used worldwide.\n" +
+    "What if I have a problem with my order?|Our support team is here to help and every order is covered by buyer protection.";
+
+  const srd = [
+    { namespace: "srd", key: "platform",     type: "single_line_text_field", value: p.platform ?? "" },
+    { namespace: "srd", key: "region",       type: "single_line_text_field", value: srdRegion },
+    { namespace: "srd", key: "language",     type: "single_line_text_field", value: p.language ?? "" },
+    { namespace: "srd", key: "license_type", type: "single_line_text_field", value: srdLicense },
+    { namespace: "srd", key: "delivery",     type: "single_line_text_field", value: srdDelivery },
+    { namespace: "srd", key: "validity",     type: "single_line_text_field", value: "Lifetime" },
+    { namespace: "srd", key: "devices",      type: "single_line_text_field", value: isPc ? "1 PC" : "" },
+    { namespace: "srd", key: "activation",   type: "multi_line_text_field",  value: (p.activationInstructions ?? "").includes("|") ? p.activationInstructions! : srdActivation },
+    { namespace: "srd", key: "faq",          type: "multi_line_text_field",  value: srdFaq },
+  ];
+
   const result = await publishProduct({
     title: p.title,
     descriptionHtml: buildDescriptionHtml(p),
@@ -261,8 +292,18 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
       { key: "delivery_type", value: p.deliveryType ?? "" },
       { key: "edition", value: p.edition ?? "" },
     ],
+    templateSuffix: /smm/i.test(p.deliveryType ?? "") ? null : "srd-digital",
     existingShopifyId: p.shopifyProductId,
   });
+
+  // srd.* metafield'larını garanti yaz (productSet tanımsızları düşürebiliyor)
+  if (!/smm/i.test(p.deliveryType ?? "")) {
+    try {
+      await setMetafields(result.productId, srd);
+    } catch (e: any) {
+      await log("shopify", `srd metafield yazılamadı (${p.title}): ${e.message}`, "warn");
+    }
+  }
 
   // koleksiyonlara ekle (yoksa oluştur)
   for (const title of collectionTitles) {
