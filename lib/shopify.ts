@@ -1,5 +1,4 @@
 // Shopify Admin GraphQL servis katmanı (tek mağaza, custom app)
-import { jget } from "./json";
 
 const DOMAIN = () => process.env.SHOPIFY_STORE_DOMAIN ?? "";
 const VERSION = () => process.env.SHOPIFY_API_VERSION ?? "2025-01";
@@ -21,10 +20,10 @@ async function getAccessToken(): Promise<string> {
   const res = await fetch(`https://${DOMAIN()}/admin/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ client_id: id, client_secret: secret, grant_type: "client_credentials" }),
+    body: JSON.stringify({ client_id: id, client_secret: secret }),
   });
-  const data = await res.json() as { access_token?: string; expires_in?: number; error?: string };
-  if (!data.access_token) throw new Error(`Shopify token alınamadı: ${JSON.stringify(data)}`);
+  const data = await res.json() as { access_token?: string; expires_in?: number; error?: string; error_description?: string };
+  if (!data.access_token) throw new Error(`Shopify token alınamadı: ${data.error ?? ""} ${data.error_description ?? ""} — ${JSON.stringify(data)}`);
 
   cachedToken = { token: data.access_token, expiresAt: Date.now() + ((data.expires_in ?? 86399) - 60) * 1000 };
   return cachedToken.token;

@@ -5,11 +5,23 @@ import { jget } from "@/lib/json";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductsPage() {
+export default async function ProductsPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
+  const { supplier, category, platform, state, q, imported } = searchParams;
+
+  const where: any = {};
+  if (supplier) where.supplierId = supplier;
+  if (category) where.supplierCategory = category;
+  if (platform) where.platform = platform;
+  if (state) where.state = state;
+  if (imported === "yes") where.shopifyProductId = { not: null };
+  if (imported === "no") where.shopifyProductId = null;
+  if (q) where.title = { contains: q, mode: "insensitive" };
+
   const [products, suppliers] = await Promise.all([
     prisma.product.findMany({
+      where,
       orderBy: { lastFetchedAt: "desc" },
-      take: 2000,
+      take: 500,
       include: { supplier: { select: { name: true, type: true } } },
     }),
     prisma.supplier.findMany({ select: { id: true, name: true } }),
@@ -17,7 +29,7 @@ export default async function ProductsPage() {
 
   return (
     <div>
-      <PageHeader title="Ürünler" sub="Yayın öncesi inceleme: filtrele, toplu düzenle, Shopify'a gönder." />
+      <PageHeader title="Ürünler" sub={`${products.length} ürün gösteriliyor — filtreleri daralt için yan paneli kullan.`} />
       <ProductsClient
         suppliers={suppliers}
         products={products.map(p => ({

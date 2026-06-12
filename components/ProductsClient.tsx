@@ -19,6 +19,13 @@ export default function ProductsClient({ products, suppliers }: { products: P[];
   const router = useRouter();
   const [q, setQ] = useState("");
   const [f, setF] = useState({ supplier: "", category: "", platform: "", region: "", language: "", delivery: "", imported: "", stock: "", flag: "", pmin: "", pmax: "" });
+
+  // Ağır filtreler (supplier, category, platform, state) URL'e yazar → server tarafında DB'den filtreler
+  function applyServerFilter(key: string, val: string) {
+    const params = new URLSearchParams(window.location.search);
+    if (val) params.set(key, val); else params.delete(key);
+    router.push(`/products?${params.toString()}`);
+  }
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -92,15 +99,15 @@ export default function ProductsClient({ products, suppliers }: { products: P[];
       <div className="card p-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <input className="input max-w-xs !py-1.5 text-sm" placeholder="Ürün veya SKU ara…" value={q} onChange={e => setQ(e.target.value)} />
-          <select className={selStyle} value={f.supplier} onChange={e => setF({ ...f, supplier: e.target.value })}>
+          <select className={selStyle} value={f.supplier} onChange={e => { setF({ ...f, supplier: e.target.value }); applyServerFilter("supplier", e.target.value); }}>
             <option value="">Tedarikçi: tümü</option>
             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <select className={selStyle} value={f.category} onChange={e => setF({ ...f, category: e.target.value })}>
+          <select className={selStyle} value={f.category} onChange={e => { setF({ ...f, category: e.target.value }); applyServerFilter("category", e.target.value); }}>
             <option value="">Kategori: tümü</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select className={selStyle} value={f.platform} onChange={e => setF({ ...f, platform: e.target.value })}>
+          <select className={selStyle} value={f.platform} onChange={e => { setF({ ...f, platform: e.target.value }); applyServerFilter("platform", e.target.value); }}>
             <option value="">Platform: tümü</option>
             {platforms.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
