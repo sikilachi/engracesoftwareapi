@@ -22,6 +22,8 @@ export default function CatalogClient({ suppliers }: { suppliers: Supplier[] }) 
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   async function selectSupplier(id: string) {
     setSupplierId(id); setCategories([]); setCategory(""); setProducts([]); setMsg(null);
@@ -32,6 +34,23 @@ export default function CatalogClient({ suppliers }: { suppliers: Supplier[] }) 
     setLoadingCats(false);
     if (!res.ok) { setMsg(data.error); return; }
     setCategories(data.categories ?? []);
+  }
+
+  function handleSearchInput(val: string) {
+    setSearchQ(val);
+    if (searchTimer) clearTimeout(searchTimer);
+    if (!val.trim() || !supplierId) return;
+    setSearchTimer(setTimeout(() => doSearch(val), 500));
+  }
+
+  async function doSearch(val: string) {
+    setCategory(""); setProducts([]); setMsg(null); setSel(new Set());
+    setLoadingProds(true);
+    const res = await fetch(`/api/suppliers/${supplierId}/search?q=${encodeURIComponent(val)}`);
+    const data = await res.json();
+    setLoadingProds(false);
+    if (!res.ok) { setMsg(data.error); return; }
+    setProducts(data.products ?? []);
   }
 
   async function selectCategory(cat: string) {
@@ -73,6 +92,15 @@ export default function CatalogClient({ suppliers }: { suppliers: Supplier[] }) 
             <option value="">Tedarikçi seç…</option>
             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
           </select>
+
+          {supplierId && (
+            <input
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-pine-600 min-w-[220px]"
+              placeholder="Ürün adı, SKU veya ID ara…"
+              value={searchQ}
+              onChange={e => handleSearchInput(e.target.value)}
+            />
+          )}
 
           {loadingCats && <span className="text-sm text-muted animate-pulse">Kategoriler yükleniyor…</span>}
 

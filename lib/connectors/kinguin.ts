@@ -64,6 +64,33 @@ export const kinguinConnector: SupplierConnector = {
     }));
   },
 
+  async search(ctx, query) {
+    const base = ctx.baseUrl.replace(/\/$/, "");
+    // Sayısal ise kinguinId ile ara, değilse name ile
+    const isId = /^\d+$/.test(query.trim());
+    const url = isId
+      ? `${base}/v1/products?kinguinId=${query.trim()}&limit=50`
+      : `${base}/v1/products?name=${encodeURIComponent(query)}&limit=50`;
+    const res = await fetch(url, { headers: { "X-Api-Key": ctx.apiKey } });
+    if (!res.ok) throw new Error(`Kinguin HTTP ${res.status}`);
+    const data = await res.json();
+    const items: any[] = data.results ?? data.products ?? [];
+    return items.map((p): NormalizedProduct => ({
+      supplierProductId: String(p.kinguinId ?? p.productId ?? p.id),
+      title: p.name ?? "Untitled",
+      description: p.description,
+      platform: String(p.platform ?? ""),
+      region: String(p.regionalLimitations ?? ""),
+      deliveryType: "instant_key",
+      supplierCategory: Array.isArray(p.genres) ? p.genres[0] : String(p.genre ?? "Games"),
+      supplierStatus: p.qty > 0 ? "available" : "out_of_stock",
+      currency: "EUR", costPrice: Number(p.price ?? 0), stock: Number(p.qty ?? 0),
+      images: [p.images?.cover?.url, p.coverImage].filter(Boolean) as string[],
+      tags: [...(Array.isArray(p.genres) ? p.genres : []), p.platform].filter(Boolean) as string[],
+      meta: { kinguinId: p.kinguinId },
+    }));
+  },
+
   async fetchProducts(ctx, opts) {
     const page = opts?.page ?? 1;
     const limit = Math.min(opts?.limit ?? 100, 100);

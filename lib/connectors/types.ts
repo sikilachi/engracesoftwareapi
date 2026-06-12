@@ -36,4 +36,5 @@ export interface SupplierConnector {
   fetchProducts(ctx: ConnectorCtx, opts?: { page?: number; limit?: number }): Promise<NormalizedProduct[]>;
   fetchCategories?(ctx: ConnectorCtx): Promise<string[]>;
   browseByCategory?(ctx: ConnectorCtx, category: string, opts?: { page?: number; limit?: number }): Promise<NormalizedProduct[]>;
+  search?(ctx: ConnectorCtx, query: string): Promise<NormalizedProduct[]>;
 }

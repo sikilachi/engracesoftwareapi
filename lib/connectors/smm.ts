@@ -38,6 +38,28 @@ export const smmConnector: SupplierConnector = {
     }
   },
 
+  async search(ctx, query) {
+    const data = await call(ctx, { action: "services" });
+    const items: any[] = Array.isArray(data) ? data : data.services ?? [];
+    const q = query.toLowerCase();
+    const matched = items.filter((s: any) =>
+      String(s.name ?? "").toLowerCase().includes(q) ||
+      String(s.service ?? s.id ?? "").includes(q)
+    ).slice(0, 100);
+    return matched.map((s): NormalizedProduct => {
+      const platform = detectPlatform(String(s.name ?? ""), String(s.category ?? ""));
+      return {
+        supplierProductId: String(s.service ?? s.id),
+        title: s.name ?? "Untitled", platform, deliveryType: "smm_service",
+        supplierCategory: s.category ?? "SMM", supplierStatus: "available",
+        currency: (ctx.config?.currency as string) ?? "USD",
+        costPrice: Number(s.rate ?? 0), stock: Number(s.max ?? 0),
+        images: [], tags: [platform, s.type].filter(Boolean) as string[],
+        meta: { min: Number(s.min ?? 0), max: Number(s.max ?? 0), type: s.type },
+      };
+    });
+  },
+
   async fetchCategories(ctx) {
     const data = await call(ctx, { action: "services" });
     const items: any[] = Array.isArray(data) ? data : data.services ?? [];
