@@ -8,6 +8,39 @@ import { computePrice, resolveRule } from "./pricing";
 import { jget, jput } from "./json";
 import { publishProduct, updateVariantPrice, getVariantInventoryItem, setInventory, ensureCollection, addToCollections, shopifyConfigured } from "./shopify";
 
+// ── Katalog'dan seçili normalize ürünleri direkt import ──────
+export async function importNormalizedProducts(supplierId: string, items: any[]) {
+  const supplier = await prisma.supplier.findUniqueOrThrow({ where: { id: supplierId } });
+  let success = 0, failed = 0;
+  for (const item of items) {
+    try {
+      await prisma.product.upsert({
+        where: { supplierId_supplierProductId: { supplierId, supplierProductId: String(item.supplierProductId) } },
+        create: {
+          supplierId, supplierProductId: String(item.supplierProductId),
+          sku: `${supplier.type.toUpperCase()}-${item.supplierProductId}`,
+          title: item.title, description: item.description ?? null,
+          platform: item.platform ?? null, region: item.region ?? null,
+          language: item.language ?? null, deliveryType: item.deliveryType ?? null,
+          supplierCategory: item.supplierCategory ?? null,
+          currency: item.currency ?? "USD",
+          costPrice: Number(item.costPrice ?? 0),
+          supplierStock: Number(item.stock ?? 0),
+          imagesJson: jput(item.images ?? []),
+          tagsJson: jput(item.tags ?? []),
+          metaJson: jput(item.meta ?? {}),
+        },
+        update: {
+          title: item.title, costPrice: Number(item.costPrice ?? 0),
+          supplierStock: Number(item.stock ?? 0), lastFetchedAt: new Date(),
+        },
+      });
+      success++;
+    } catch { failed++; }
+  }
+  return { success, failed };
+}
+
 export async function startJob(type: string, total = 0) {
   return prisma.syncJob.create({ data: { type, total } });
 }

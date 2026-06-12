@@ -19,6 +19,51 @@ export const kinguinConnector: SupplierConnector = {
     }
   },
 
+  async fetchCategories(ctx) {
+    try {
+      const res = await fetch(`${ctx.baseUrl.replace(/\/$/, "")}/v1/genres`, { headers: { "X-Api-Key": ctx.apiKey } });
+      if (res.ok) {
+        const data = await res.json();
+        const genres: string[] = Array.isArray(data) ? data.map((g: any) => g.name ?? g).filter(Boolean) : [];
+        if (genres.length) return genres.sort();
+      }
+    } catch {}
+    // fallback: ilk sayfadan çıkar
+    const res = await fetch(`${ctx.baseUrl.replace(/\/$/, "")}/v1/products?limit=100`, { headers: { "X-Api-Key": ctx.apiKey } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items: any[] = data.results ?? data.products ?? [];
+    const cats = Array.from(new Set(items.flatMap((p: any) => Array.isArray(p.genres) ? p.genres : [p.genre]).filter(Boolean) as string[]));
+    return cats.sort();
+  },
+
+  async browseByCategory(ctx, category, opts) {
+    const page = opts?.page ?? 1;
+    const limit = Math.min(opts?.limit ?? 100, 100);
+    const res = await fetch(
+      `${ctx.baseUrl.replace(/\/$/, "")}/v1/products?genres[]=${encodeURIComponent(category)}&page=${page}&limit=${limit}`,
+      { headers: { "X-Api-Key": ctx.apiKey } }
+    );
+    if (!res.ok) throw new Error(`Kinguin HTTP ${res.status}`);
+    const data = await res.json();
+    const items: any[] = data.results ?? data.products ?? [];
+    return items.map((p): NormalizedProduct => ({
+      supplierProductId: String(p.kinguinId ?? p.productId ?? p.id),
+      title: p.name ?? p.originalName ?? "Untitled",
+      description: p.description,
+      platform: String(p.platform ?? ""),
+      region: String(p.regionalLimitations ?? p.regionId ?? ""),
+      language: Array.isArray(p.languages) ? p.languages.join(", ") : String(p.languages ?? ""),
+      deliveryType: "instant_key",
+      supplierCategory: Array.isArray(p.genres) ? p.genres[0] : String(p.genre ?? "Games"),
+      supplierStatus: p.qty > 0 ? "available" : "out_of_stock",
+      currency: "EUR", costPrice: Number(p.price ?? 0), stock: Number(p.qty ?? 0),
+      images: [p.images?.cover?.url, p.coverImage].filter(Boolean) as string[],
+      tags: [...(Array.isArray(p.genres) ? p.genres : []), p.platform].filter(Boolean) as string[],
+      meta: { kinguinId: p.kinguinId },
+    }));
+  },
+
   async fetchProducts(ctx, opts) {
     const page = opts?.page ?? 1;
     const limit = Math.min(opts?.limit ?? 100, 100);

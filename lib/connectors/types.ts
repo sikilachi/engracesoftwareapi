@@ -34,4 +34,6 @@ export interface SupplierConnector {
   type: string;
   test(ctx: ConnectorCtx): Promise<{ ok: boolean; message: string }>;
   fetchProducts(ctx: ConnectorCtx, opts?: { page?: number; limit?: number }): Promise<NormalizedProduct[]>;
+  fetchCategories?(ctx: ConnectorCtx): Promise<string[]>;
+  browseByCategory?(ctx: ConnectorCtx, category: string, opts?: { page?: number; limit?: number }): Promise<NormalizedProduct[]>;
 }

@@ -38,6 +38,36 @@ export const smmConnector: SupplierConnector = {
     }
   },
 
+  async fetchCategories(ctx) {
+    const data = await call(ctx, { action: "services" });
+    const items: any[] = Array.isArray(data) ? data : data.services ?? [];
+    const cats = Array.from(new Set(items.map((s: any) => String(s.category ?? "")).filter(Boolean)));
+    return cats.sort();
+  },
+
+  async browseByCategory(ctx, category, opts) {
+    const data = await call(ctx, { action: "services" });
+    const items: any[] = (Array.isArray(data) ? data : data.services ?? [])
+      .filter((s: any) => String(s.category ?? "") === category);
+    const page = opts?.page ?? 1;
+    const limit = opts?.limit ?? 200;
+    const paged = items.slice((page - 1) * limit, page * limit);
+    return paged.map((s): NormalizedProduct => {
+      const platform = detectPlatform(String(s.name ?? ""), String(s.category ?? ""));
+      return {
+        supplierProductId: String(s.service ?? s.id),
+        title: s.name ?? "Untitled service",
+        description: s.description ?? undefined,
+        platform, deliveryType: "smm_service",
+        supplierCategory: s.category ?? "SMM", supplierStatus: "available",
+        currency: (ctx.config?.currency as string) ?? "USD",
+        costPrice: Number(s.rate ?? 0), stock: Number(s.max ?? 0),
+        images: [], tags: [platform, s.type].filter(Boolean) as string[],
+        meta: { ratePer1000: Number(s.rate ?? 0), min: Number(s.min ?? 0), max: Number(s.max ?? 0), type: s.type, refill: s.refill },
+      };
+    });
+  },
+
   async fetchProducts(ctx) {
     const data = await call(ctx, { action: "services" });
     const items: any[] = Array.isArray(data) ? data : data.services ?? [];

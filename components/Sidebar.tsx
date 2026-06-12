@@ -8,7 +8,8 @@ const NAV = [
   ]},
   { group: "Katalog", items: [
     { href: "/suppliers", label: "Tedarikçiler", icon: "⇄" },
-    { href: "/products", label: "Ürünler", icon: "▤" },
+    { href: "/catalog", label: "Katalog Gez", icon: "⊞" },
+    { href: "/products", label: "Ürünler (DB)", icon: "▤" },
     { href: "/mapping", label: "Kategori Eşleme", icon: "⌥" },
     { href: "/price-rules", label: "Fiyat Kuralları", icon: "₺" },
   ]},
