@@ -184,7 +184,7 @@ export default function ProductsClient({ products, suppliers, allCategories = []
       </div>
 
       {filtered.length === 0 ? (
-        <Empty title="Ürün bulunamadı" hint="Filtreleri temizle veya Tedarikçiler sayfasından ürün çek." />
+        <Empty title={products.length === 0 ? "Filtre seçin" : "Ürün bulunamadı"} hint={products.length === 0 ? "Yukarıdan tedarikçi veya kategori seç — ürünler anında yüklenir." : "Filtreleri temizle veya Tedarikçiler sayfasından ürün çek."} />
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[900px]">

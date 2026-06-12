@@ -28,11 +28,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Rec
           take: 500,
           include: { supplier: { select: { name: true, type: true } } },
         })
-      : prisma.product.findMany({
-          orderBy: { lastFetchedAt: "desc" },
-          take: 100,
-          include: { supplier: { select: { name: true, type: true } } },
-        }),
+      : Promise.resolve([]),
     prisma.supplier.findMany({ select: { id: true, name: true } }),
     prisma.product.findMany({ select: { supplierCategory: true }, distinct: ["supplierCategory"], where: { supplierCategory: { not: null } }, orderBy: { supplierCategory: "asc" } }),
     prisma.product.findMany({ select: { platform: true }, distinct: ["platform"], where: { platform: { not: null } }, orderBy: { platform: "asc" } }),
@@ -42,7 +38,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Rec
     <div>
       <PageHeader
         title="Ürünler"
-        sub={hasFilter ? `${products.length} ürün filtrelendi` : `Son 100 ürün — kategori/tedarikçi seçince filtreli yükler`}
+        sub={hasFilter ? `${products.length} ürün` : "Tedarikçi veya kategori seçerek ürünleri yükle"}
       />
       <ProductsClient
         suppliers={suppliers}
