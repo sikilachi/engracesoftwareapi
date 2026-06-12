@@ -1,0 +1,202 @@
+// Engrace Software — veri modeli
+// SQLite ile başlar. Supabase/Postgres'e geçmek için:
+//   provider = "postgresql"  +  DATABASE_URL'i değiştir  +  npx prisma db push
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Supplier {
+  id            String    @id @default(cuid())
+  name          String
+  type          String    // kinguin | g2a | smm | custom
+  baseUrl       String
+  apiKeyEnc     String    // AES-256-GCM ile şifreli
+  apiSecretEnc  String?
+  configJson    String?   // konnektöre özel ayarlar (JSON)
+  status        String    @default("unknown") // ok | error | unknown
+  healthMessage String?
+  lastSyncAt    DateTime?
+  createdAt     DateTime  @default(now())
+  products      Product[]
+}
+
+model Product {
+  id                     String    @id @default(cuid())
+  supplierId             String
+  supplier               Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierProductId      String
+  sku                    String?
+  title                  String
+  description            String?
+  shortDescription       String?
+  usageInstructions      String?
+  activationInstructions String?
+  platform               String?
+  region                 String?
+  language               String?
+  edition                String?
+  licenseType            String?
+  deliveryType           String?
+  activationType         String?
+  supplierCategory       String?
+  supplierStatus         String?
+  currency               String    @default("EUR")
+  costPrice              Float     @default(0)
+  supplierStock          Int       @default(0)
+  imagesJson             String    @default("[]")
+  tagsJson               String    @default("[]")
+  metaJson               String    @default("{}")
+  sellingPrice           Float?
+  priceOverride          Float?
+  compareAtPrice         Float?
+  shopifyStock           Int?
+  stockRuleJson          String?
+  collectionsJson        String    @default("[]")
+  seoTitle               String?
+  seoDescription         String?
+  publishStatus          String    @default("draft")
+  state                  String    @default("fetched")
+  shopifyProductId       String?
+  syncPrice              Boolean   @default(true)
+  syncStock              Boolean   @default(true)
+  syncTitle              Boolean   @default(true)
+  syncDescription        Boolean   @default(true)
+  syncImages             Boolean   @default(true)
+  protectEdits           Boolean   @default(false)
+  manuallyEdited         Boolean   @default(false)
+  priceChanged           Boolean   @default(false)
+  stockChanged           Boolean   @default(false)
+  lastFetchedAt          DateTime  @default(now())
+  lastSyncedAt           DateTime?
+  createdAt              DateTime  @default(now())
+
+  @@unique([supplierId, supplierProductId])
+  @@index([state])
+  @@index([platform])
+  @@index([supplierCategory])
+}
+
+model CategoryMapping {
+  id                String  @id @default(cuid())
+  supplierId        String?
+  supplierCategory  String
+  shopifyCollection String
+  autoTagsJson      String  @default("[]")
+  createdAt         DateTime @default(now())
+}
+
+model PriceRule {
+  id                  String  @id @default(cuid())
+  name                String
+  scope               String
+  supplierId          String?
+  category            String?
+  productId           String?
+  markupType          String  @default("percent")
+  markupValue         Float   @default(30)
+  minProfit           Float   @default(0)
+  rounding            String  @default("charm99")
+  compareAtMultiplier Float?
+  priority            Int     @default(0)
+  active              Boolean @default(true)
+  createdAt           DateTime @default(now())
+}
+
+model SyncJob {
+  id         String    @id @default(cuid())
+  type       String
+  status     String    @default("running")
+  total      Int       @default(0)
+  success    Int       @default(0)
+  failed     Int       @default(0)
+  detail     String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+}
+
+model LogEntry {
+  id        String   @id @default(cuid())
+  level     String   @default("info")
+  area      String
+  message   String
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model SmmGroup {
+  id                 String   @id @default(cuid())
+  title              String
+  platform           String
+  descriptionHtml    String?
+  requiredFieldsJson String   @default("[\"Hedef Link\"]")
+  shopifyProductId   String?
+  status             String   @default("draft")
+  logoUrl            String?
+  createdAt          DateTime @default(now())
+  variants           SmmVariant[]
+  automation         AutomationConfig?
+}
+
+model SmmVariant {
+  id                String  @id @default(cuid())
+  groupId           String
+  group             SmmGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  label             String
+  quantity          Int
+  country           String?
+  refill            String?
+  speed             String?
+  providerServiceId String
+  supplierId        String?
+  costPrice         Float    @default(0)
+  price             Float    @default(0)
+  active            Boolean  @default(true)
+}
+
+model SmmOrder {
+  id                String   @id @default(cuid())
+  shopifyOrderId    String
+  shopifyOrderName  String?
+  customerJson      String   @default("{}")
+  productTitle      String
+  variantLabel      String?
+  optionsJson       String   @default("{}")
+  targetLink        String?
+  quantity          Int      @default(1)
+  refill            String?
+  providerServiceId String?
+  status            String   @default("pending")
+  notes             String?
+  providerResponse  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AutomationConfig {
+  id             String   @id @default(cuid())
+  smmGroupId     String   @unique
+  group          SmmGroup @relation(fields: [smmGroupId], references: [id], onDelete: Cascade)
+  enabled        Boolean  @default(false)
+  mode           String   @default("manual_approval")
+  supplierId     String?
+  lastTestAt     DateTime?
+  lastTestResult String?
+}
+
+model LogoAsset {
+  id        String   @id @default(cuid())
+  platform  String   @unique
+  filename  String
+  url       String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
