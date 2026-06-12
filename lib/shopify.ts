@@ -2,18 +2,44 @@
 import { jget } from "./json";
 
 const DOMAIN = () => process.env.SHOPIFY_STORE_DOMAIN ?? "";
-const TOKEN = () => process.env.SHOPIFY_ADMIN_TOKEN ?? "";
 const VERSION = () => process.env.SHOPIFY_API_VERSION ?? "2025-01";
+const CLIENT_ID = () => process.env.SHOPIFY_CLIENT_ID ?? process.env.SHOPIFY_ADMIN_TOKEN ?? "";
+const CLIENT_SECRET = () => process.env.SHOPIFY_CLIENT_SECRET ?? "";
+
+// In-memory token cache (Vercel instance başına geçerli)
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+async function getAccessToken(): Promise<string> {
+  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token;
+
+  const secret = CLIENT_SECRET();
+  const id = CLIENT_ID();
+
+  // Statik token varsa kullan (eski custom app)
+  if (!secret && id.startsWith("shpat_")) return id;
+
+  const res = await fetch(`https://${DOMAIN()}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ client_id: id, client_secret: secret, grant_type: "client_credentials" }),
+  });
+  const data = await res.json() as { access_token?: string; expires_in?: number; error?: string };
+  if (!data.access_token) throw new Error(`Shopify token alınamadı: ${JSON.stringify(data)}`);
+
+  cachedToken = { token: data.access_token, expiresAt: Date.now() + ((data.expires_in ?? 86399) - 60) * 1000 };
+  return cachedToken.token;
+}
 
 export function shopifyConfigured() {
-  return Boolean(DOMAIN() && TOKEN());
+  return Boolean(DOMAIN() && (CLIENT_ID() || CLIENT_SECRET()));
 }
 
 export async function gql<T = any>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  if (!shopifyConfigured()) throw new Error("Shopify yapılandırılmamış. .env içinde SHOPIFY_STORE_DOMAIN ve SHOPIFY_ADMIN_TOKEN gerekli.");
+  if (!shopifyConfigured()) throw new Error("Shopify yapılandırılmamış. .env içinde SHOPIFY_STORE_DOMAIN ve SHOPIFY_CLIENT_ID/SECRET gerekli.");
+  const token = await getAccessToken();
   const res = await fetch(`https://${DOMAIN()}/admin/api/${VERSION()}/graphql.json`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": TOKEN() },
+    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
     body: JSON.stringify({ query, variables }),
   });
   const body = await res.json();
