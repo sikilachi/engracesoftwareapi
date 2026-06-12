@@ -8,6 +8,54 @@ import { computePrice, resolveRule } from "./pricing";
 import { jget, jput } from "./json";
 import { publishProduct, updateVariantPrice, getVariantInventoryItem, setInventory, ensureCollection, addToCollections, shopifyConfigured } from "./shopify";
 
+// ── Açıklama HTML temizle + özellik tablosu ekle ─────────────
+function cleanHtml(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/style="[^"]*"/gi, "")
+    .replace(/class="[^"]*"/gi, "")
+    .replace(/<font[^>]*>/gi, "").replace(/<\/font>/gi, "")
+    .replace(/(<br\s*\/?>\s*){3,}/gi, "<br><br>")
+    .replace(/(<p>\s*<\/p>\s*){2,}/gi, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s{3,}/g, "  ")
+    .trim();
+}
+
+function buildDescriptionHtml(p: {
+  description?: string | null;
+  platform?: string | null;
+  region?: string | null;
+  language?: string | null;
+  licenseType?: string | null;
+  deliveryType?: string | null;
+  edition?: string | null;
+  activationType?: string | null;
+}): string {
+  const specs: [string, string][] = [
+    ["Platform", p.platform ?? ""],
+    ["Bölge", p.region ?? ""],
+    ["Dil", p.language ?? ""],
+    ["Sürüm", p.edition ?? ""],
+    ["Lisans tipi", p.licenseType ?? ""],
+    ["Teslimat tipi", p.deliveryType ?? ""],
+    ["Aktivasyon tipi", p.activationType ?? ""],
+  ].filter(([, v]) => v) as [string, string][];
+
+  const mainHtml = p.description ? cleanHtml(p.description) : "";
+
+  if (specs.length === 0) return mainHtml || `<p>${"Dijital ürün"}</p>`;
+
+  const rows = specs.map(([k, v]) =>
+    `<tr><td style="padding:6px 12px 6px 0;font-weight:600;white-space:nowrap;vertical-align:top;">${k}</td><td style="padding:6px 0;">${v}</td></tr>`
+  ).join("");
+
+  const table = `<table style="border-collapse:collapse;margin-top:16px;width:100%;font-size:14px;">${rows}</table>`;
+
+  return (mainHtml ? `${mainHtml}\n` : "") + table;
+}
+
 // ── Katalog'dan seçili normalize ürünleri direkt import ──────
 export async function importNormalizedProducts(supplierId: string, items: any[]) {
   const supplier = await prisma.supplier.findUniqueOrThrow({ where: { id: supplierId } });
@@ -188,7 +236,7 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
 
   const result = await publishProduct({
     title: p.title,
-    descriptionHtml: p.description ?? `<p>${p.title}</p>`,
+    descriptionHtml: buildDescriptionHtml(p),
     vendor: p.supplier.name,
     productType: p.supplierCategory ?? "Digital",
     tags,
@@ -208,6 +256,10 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
       { key: "last_sync", value: new Date().toISOString() },
       { key: "platform", value: p.platform ?? "" },
       { key: "region", value: p.region ?? "" },
+      { key: "language", value: p.language ?? "" },
+      { key: "license_type", value: p.licenseType ?? "" },
+      { key: "delivery_type", value: p.deliveryType ?? "" },
+      { key: "edition", value: p.edition ?? "" },
     ],
     existingShopifyId: p.shopifyProductId,
   });
