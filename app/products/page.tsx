@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
   const { supplier, category, platform, state, q, imported } = searchParams;
 
+  const hasFilter = !!(supplier || category || platform || state || q || imported);
+
   const where: any = {};
   if (supplier) where.supplierId = supplier;
   if (category) where.supplierCategory = category;
@@ -15,23 +17,37 @@ export default async function ProductsPage({ searchParams }: { searchParams: Rec
   if (state) where.state = state;
   if (imported === "yes") where.shopifyProductId = { not: null };
   if (imported === "no") where.shopifyProductId = null;
-  if (q) where.title = { contains: q, mode: "insensitive" };
+  if (q) where.title = { contains: q };
 
-  const [products, suppliers] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy: { lastFetchedAt: "desc" },
-      take: 500,
-      include: { supplier: { select: { name: true, type: true } } },
-    }),
+  // Kategori, platform listelerini hızlı çek (sadece distinct değerler)
+  const [products, suppliers, allCategories, allPlatforms] = await Promise.all([
+    hasFilter
+      ? prisma.product.findMany({
+          where,
+          orderBy: { lastFetchedAt: "desc" },
+          take: 500,
+          include: { supplier: { select: { name: true, type: true } } },
+        })
+      : prisma.product.findMany({
+          orderBy: { lastFetchedAt: "desc" },
+          take: 100,
+          include: { supplier: { select: { name: true, type: true } } },
+        }),
     prisma.supplier.findMany({ select: { id: true, name: true } }),
+    prisma.product.findMany({ select: { supplierCategory: true }, distinct: ["supplierCategory"], where: { supplierCategory: { not: null } }, orderBy: { supplierCategory: "asc" } }),
+    prisma.product.findMany({ select: { platform: true }, distinct: ["platform"], where: { platform: { not: null } }, orderBy: { platform: "asc" } }),
   ]);
 
   return (
     <div>
-      <PageHeader title="Ürünler" sub={`${products.length} ürün gösteriliyor — filtreleri daralt için yan paneli kullan.`} />
+      <PageHeader
+        title="Ürünler"
+        sub={hasFilter ? `${products.length} ürün filtrelendi` : `Son 100 ürün — kategori/tedarikçi seçince filtreli yükler`}
+      />
       <ProductsClient
         suppliers={suppliers}
+        allCategories={allCategories.map(p => p.supplierCategory!)}
+        allPlatforms={allPlatforms.map(p => p.platform!)}
         products={products.map(p => ({
           id: p.id, title: p.title, sku: p.sku,
           supplierId: p.supplierId, supplierName: p.supplier.name,

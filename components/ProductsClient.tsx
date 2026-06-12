@@ -15,26 +15,33 @@ type P = {
 
 const uniq = (arr: (string | null)[]) => Array.from(new Set(arr.filter(Boolean))) as string[];
 
-export default function ProductsClient({ products, suppliers }: { products: P[]; suppliers: { id: string; name: string }[] }) {
+export default function ProductsClient({ products, suppliers, allCategories = [], allPlatforms = [] }: {
+  products: P[];
+  suppliers: { id: string; name: string }[];
+  allCategories?: string[];
+  allPlatforms?: string[];
+}) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [f, setF] = useState({ supplier: "", category: "", platform: "", region: "", language: "", delivery: "", imported: "", stock: "", flag: "", pmin: "", pmax: "" });
 
-  // Ağır filtreler (supplier, category, platform, state) URL'e yazar → server tarafında DB'den filtreler
   function applyServerFilter(key: string, val: string) {
     const params = new URLSearchParams(window.location.search);
     if (val) params.set(key, val); else params.delete(key);
     router.push(`/products?${params.toString()}`);
   }
+
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const categories = useMemo(() => uniq(products.map(p => p.category)), [products]);
-  const platforms = useMemo(() => uniq(products.map(p => p.platform)), [products]);
+  const localCategories = useMemo(() => uniq(products.map(p => p.category)), [products]);
+  const localPlatforms = useMemo(() => uniq(products.map(p => p.platform)), [products]);
   const regions = useMemo(() => uniq(products.map(p => p.region)), [products]);
   const languages = useMemo(() => uniq(products.map(p => p.language)), [products]);
   const deliveries = useMemo(() => uniq(products.map(p => p.deliveryType)), [products]);
+  const categories = allCategories.length ? allCategories : localCategories;
+  const platforms = allPlatforms.length ? allPlatforms : localPlatforms;
 
   const filtered = useMemo(() => products.filter(p => {
     if (q && !`${p.title} ${p.sku ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
