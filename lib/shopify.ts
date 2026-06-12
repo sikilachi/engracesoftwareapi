@@ -11,11 +11,12 @@ let cachedToken: { token: string; expiresAt: number } | null = null;
 async function getAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token;
 
+  // Statik admin token varsa direkt kullan
+  const staticToken = process.env.SHOPIFY_ADMIN_TOKEN ?? "";
+  if (staticToken.startsWith("shpat_")) return staticToken;
+
   const secret = CLIENT_SECRET();
   const id = CLIENT_ID();
-
-  // Statik token varsa kullan (eski custom app)
-  if (!secret && id.startsWith("shpat_")) return id;
 
   const res = await fetch(`https://${DOMAIN()}/admin/oauth/access_token`, {
     method: "POST",
