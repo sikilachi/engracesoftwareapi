@@ -70,7 +70,9 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
     const res = await fetch("/api/products/publish", { method: "POST", body: JSON.stringify({ ids: [product.id], status }) });
     const d = await res.json();
     setBusy(null);
-    setMsg(res.ok ? `Shopify'a gönderildi (${d.success ?? 1} başarılı)` : d.error ?? "Yayın hatası");
+    setMsg(res.ok
+      ? (d.success > 0 ? `Shopify'a gönderildi ✓` : `Yayın başarısız — ${d.errors?.[0] ?? "bilinmeyen hata"}`)
+      : d.error ?? "Yayın hatası");
     router.refresh();
   }
 
