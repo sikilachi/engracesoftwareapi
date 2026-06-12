@@ -22,8 +22,10 @@ async function getAccessToken(): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ client_id: id, client_secret: secret }),
   });
-  const data = await res.json() as { access_token?: string; expires_in?: number; error?: string; error_description?: string };
-  if (!data.access_token) throw new Error(`Shopify token alınamadı: ${data.error ?? ""} ${data.error_description ?? ""} — ${JSON.stringify(data)}`);
+  const text = await res.text();
+  let data: { access_token?: string; expires_in?: number; error?: string; error_description?: string } = {};
+  try { data = JSON.parse(text); } catch { throw new Error(`Shopify token yanıtı JSON değil (HTTP ${res.status}): ${text.slice(0, 300)}`); }
+  if (!data.access_token) throw new Error(`Shopify token alınamadı: ${data.error ?? ""} ${data.error_description ?? ""} — store: ${DOMAIN()}`);
 
   cachedToken = { token: data.access_token, expiresAt: Date.now() + ((data.expires_in ?? 86399) - 60) * 1000 };
   return cachedToken.token;
