@@ -2,7 +2,8 @@
 // SQLite ile başlar. Supabase/Postgres'e geçmek için:
 //   provider = "postgresql"  +  DATABASE_URL'i değiştir  +  npx prisma db push
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
