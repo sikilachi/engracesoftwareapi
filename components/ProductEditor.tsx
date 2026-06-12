@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "./ui";
+
+type Review = { id: string; author: string; rating: number; title: string | null; body: string; createdAt: string };
 
 type P = {
   id: string; title: string; description: string; shortDescription: string;
@@ -34,7 +36,15 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewCount, setReviewCount] = useState("5");
   const set = (k: string, v: unknown) => setF((x: any) => ({ ...x, [k]: v }));
+
+  useEffect(() => {
+    fetch(`/api/products/${product.id}/reviews`)
+      .then(r => r.json())
+      .then(d => setReviews(d.reviews ?? []));
+  }, [product.id]);
 
   const margin = (f.sellingPrice ?? 0) - f.costPrice;
   const marginPct = f.costPrice > 0 ? (margin / f.costPrice) * 100 : 0;
@@ -74,6 +84,24 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
       ? (d.success > 0 ? `Shopify'a gönderildi ✓` : `Yayın başarısız — ${d.errors?.[0] ?? "bilinmeyen hata"}`)
       : d.error ?? "Yayın hatası");
     router.refresh();
+  }
+
+  async function generateReviews() {
+    setBusy("reviews"); setMsg(null);
+    const res = await fetch(`/api/products/${product.id}/reviews/generate`, {
+      method: "POST", body: JSON.stringify({ count: Number(reviewCount) || 5 }),
+    });
+    const d = await res.json();
+    setBusy(null);
+    if (!res.ok) { setMsg(d.error ?? "Yorum üretilemedi"); return; }
+    setReviews(r => [...d.reviews, ...r]);
+    setMsg(`${d.count} yorum üretildi`);
+  }
+
+  async function deleteReviews() {
+    setBusy("delreviews"); setMsg(null);
+    await fetch(`/api/products/${product.id}/reviews`, { method: "DELETE" });
+    setReviews([]); setBusy(null); setMsg("Yorumlar silindi");
   }
 
   async function sync(what: "stock" | "price" | "both") {
@@ -172,6 +200,49 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
               <pre className="max-h-64 overflow-auto rounded-lg bg-gray-50 p-3 text-xs">{JSON.stringify(meta, null, 2)}</pre>
             </div>
           ) : null}
+
+          <div className="card space-y-4 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Test Yorumları (AI)</h2>
+              {reviews.length > 0 && (
+                <button className="text-xs text-danger underline" disabled={busy !== null} onClick={deleteReviews}>
+                  Tümünü sil
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min={1} max={20}
+                className="input w-20 text-center"
+                value={reviewCount}
+                onChange={e => setReviewCount(e.target.value)}
+              />
+              <span className="text-sm text-muted">yorum</span>
+              <button className="btn-primary" disabled={busy !== null} onClick={generateReviews}>
+                {busy === "reviews" ? "Üretiliyor…" : "AI ile üret"}
+              </button>
+            </div>
+
+            {reviews.length > 0 ? (
+              <div className="space-y-3">
+                {reviews.map(r => (
+                  <div key={r.id} className="rounded-lg border border-line bg-white p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">{r.author}</span>
+                        <span className="text-amber-500 text-sm">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                      </div>
+                      <span className="text-[11px] text-muted">{new Date(r.createdAt).toLocaleDateString("tr-TR")}</span>
+                    </div>
+                    {r.title && <p className="mt-1 text-sm font-medium">{r.title}</p>}
+                    <p className="mt-1 text-sm text-muted leading-relaxed">{r.body}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">Henüz yorum yok. Yukarıdan üret.</p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
