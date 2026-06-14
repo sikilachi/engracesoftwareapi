@@ -21,6 +21,15 @@ function newestFirst(items: any[]) {
   return [...items].sort((a, b) => newestScore(b) - newestScore(a));
 }
 
+function genreNames(p: any): string[] {
+  return (Array.isArray(p.genres) ? p.genres : [p.genre]).filter(Boolean).map((g: any) => String(g));
+}
+
+function genreMatches(p: any, category: string): boolean {
+  const wanted = category.trim().toLowerCase();
+  return genreNames(p).some(g => g.trim().toLowerCase() === wanted);
+}
+
 function toProduct(p: any): NormalizedProduct {
   return {
     supplierProductId: String(p.kinguinId ?? p.productId ?? p.id),
@@ -33,7 +42,7 @@ function toProduct(p: any): NormalizedProduct {
     activationInstructions: str(p.activationDetails),
     deliveryType: "instant_key",
     licenseType: str(p.genre),
-    supplierCategory: Array.isArray(p.genres) ? p.genres[0] : str(p.genre) ?? "Games",
+    supplierCategory: genreNames(p)[0] ?? "Games",
     supplierStatus: p.qty > 0 ? "available" : "out_of_stock",
     currency: "EUR",
     costPrice: Number(p.price ?? 0),
@@ -96,13 +105,13 @@ export const kinguinConnector: SupplierConnector = {
     const limit = Math.min(opts?.limit ?? 100, 100);
     const sort = newestSortParams(opts);
     const res = await fetch(
-      `${ctx.baseUrl.replace(/\/$/, "")}/v1/products?genres[]=${encodeURIComponent(category)}&page=${page}&limit=${limit}&sortBy=${encodeURIComponent(sort.sortBy)}&sortType=${sort.sortType}`,
+      `${ctx.baseUrl.replace(/\/$/, "")}/v1/products?genre=${encodeURIComponent(category)}&page=${page}&limit=${limit}&sortBy=${encodeURIComponent(sort.sortBy)}&sortType=${sort.sortType}`,
       { headers: { "X-Api-Key": ctx.apiKey } }
     );
     if (!res.ok) throw new Error(`Kinguin HTTP ${res.status}`);
     const data = await res.json();
     const items: any[] = data.results ?? data.products ?? [];
-    return newestFirst(items).map(toProduct);
+    return newestFirst(items.filter(p => genreMatches(p, category))).map(toProduct);
   },
 
   async search(ctx, query) {
