@@ -6,15 +6,19 @@ import { Badge, Empty } from "./ui";
 type O = {
   id: string; shopifyOrderName: string; productTitle: string; variantLabel: string | null;
   targetLink: string | null; quantity: number; refill: string | null; providerServiceId: string | null;
+  providerOrderId: string | null; platform: string | null; serviceType: string | null;
   status: string; notes: string; optionsJson: string; customerJson: string; createdAt: string;
 };
 
 const STATUSES = [
-  ["pending", "Bekliyor", "amber"],
-  ["processing", "İşleniyor", "blue"],
-  ["completed", "Tamamlandı", "green"],
-  ["failed", "Başarısız", "red"],
-  ["refunded", "İade", "neutral"],
+  ["pending", "Pending", "amber"],
+  ["manual_review", "Manual review", "amber"],
+  ["pending_provider_submission", "Waiting submit", "blue"],
+  ["submitted_to_provider", "Submitted", "blue"],
+  ["processing", "Processing", "blue"],
+  ["completed", "Completed", "green"],
+  ["failed", "Failed", "red"],
+  ["refunded", "Refunded", "neutral"],
 ] as const;
 
 export default function SmmOrdersClient({ orders }: { orders: O[] }) {
@@ -39,13 +43,21 @@ export default function SmmOrdersClient({ orders }: { orders: O[] }) {
     router.refresh();
   }
 
+  async function refill(id: string) {
+    setBusy(id);
+    await fetch("/api/smm/refills", { method: "POST", body: JSON.stringify({ smmOrderId: id }) });
+    setBusy(null);
+    router.refresh();
+  }
+
   function copy(o: O) {
     const text = [
-      `Servis ID: ${o.providerServiceId ?? "?"}`,
+      `Service ID: ${o.providerServiceId ?? "?"}`,
+      o.providerOrderId ? `Provider order: ${o.providerOrderId}` : null,
       `Link: ${o.targetLink ?? "?"}`,
-      `Miktar: ${o.quantity}`,
+      `Quantity: ${o.quantity}`,
       o.refill ? `Refill: ${o.refill}` : null,
-      `Sipariş: ${o.shopifyOrderName} · ${o.productTitle}${o.variantLabel ? " / " + o.variantLabel : ""}`,
+      `Order: ${o.shopifyOrderName} / ${o.productTitle}${o.variantLabel ? " / " + o.variantLabel : ""}`,
     ].filter(Boolean).join("\n");
     navigator.clipboard.writeText(text).then(() => {
       setCopied(o.id);
@@ -56,15 +68,15 @@ export default function SmmOrdersClient({ orders }: { orders: O[] }) {
   return (
     <div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button className={`badge ${filter === "all" ? "bg-pine-600 text-white" : "bg-gray-100 text-gray-600"}`} onClick={() => setFilter("all")}>Hepsi · {orders.length}</button>
+        <button className={`badge ${filter === "all" ? "bg-pine-600 text-white" : "bg-gray-100 text-gray-600"}`} onClick={() => setFilter("all")}>All - {orders.length}</button>
         {STATUSES.map(([k, l]) => {
           const n = orders.filter(o => o.status === k).length;
-          return <button key={k} className={`badge ${filter === k ? "bg-pine-600 text-white" : "bg-gray-100 text-gray-600"}`} onClick={() => setFilter(k)}>{l} · {n}</button>;
+          return <button key={k} className={`badge ${filter === k ? "bg-pine-600 text-white" : "bg-gray-100 text-gray-600"}`} onClick={() => setFilter(k)}>{l} - {n}</button>;
         })}
       </div>
 
       {list.length === 0 ? (
-        <Empty title="Bu filtrede sipariş yok" hint="Shopify'da SMM ürünü satıldığında webhook ile buraya düşer." />
+        <Empty title="No SMM orders in this filter" hint="Paid Shopify SMM line items will appear here after webhook processing." />
       ) : (
         <div className="space-y-3">
           {list.map(o => {
@@ -74,26 +86,29 @@ export default function SmmOrdersClient({ orders }: { orders: O[] }) {
               <div key={o.id} className="card p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold">{o.shopifyOrderName} · {o.productTitle}{o.variantLabel ? ` / ${o.variantLabel}` : ""}</p>
-                    <p className="mt-0.5 text-xs text-muted">{new Date(o.createdAt).toLocaleString("tr-TR")} · Servis ID: <span className="font-mono">{o.providerServiceId ?? "—"}</span> · Miktar: {o.quantity}{o.refill ? ` · Refill: ${o.refill}` : ""}</p>
-                    {o.targetLink ? <p className="mt-1 break-all text-sm">🔗 <a href={o.targetLink} target="_blank" rel="noreferrer" className="text-pine-700 hover:underline">{o.targetLink}</a></p> : <p className="mt-1 text-sm text-danger">Hedef link eksik!</p>}
+                    <p className="font-semibold">{o.shopifyOrderName} - {o.productTitle}{o.variantLabel ? ` / ${o.variantLabel}` : ""}</p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {new Date(o.createdAt).toLocaleString()} - {o.platform ?? "platform?"} / {o.serviceType ?? "service?"} - service <span className="font-mono">{o.providerServiceId ?? "-"}</span> - provider order <span className="font-mono">{o.providerOrderId ?? "-"}</span> - qty {o.quantity}{o.refill ? ` - refill ${o.refill}` : ""}
+                    </p>
+                    {o.targetLink ? <p className="mt-1 break-all text-sm"><a href={o.targetLink.startsWith("http") ? o.targetLink : undefined} target="_blank" rel="noreferrer" className="text-pine-700 hover:underline">{o.targetLink}</a></p> : <p className="mt-1 text-sm text-danger">Target link missing.</p>}
                     {Object.keys(options).length > 0 ? (
-                      <p className="mt-1 text-xs text-muted">{Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(" · ")}</p>
+                      <p className="mt-1 text-xs text-muted">{Object.entries(options).map(([k, v]) => `${k}: ${v}`).join(" - ")}</p>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone={tone(o.status)}>{label(o.status)}</Badge>
-                    <button className="btn-ghost text-xs" onClick={() => copy(o)}>{copied === o.id ? "Kopyalandı ✓" : "Kopyala"}</button>
+                    <button className="btn-ghost text-xs" onClick={() => copy(o)}>{copied === o.id ? "Copied" : "Copy"}</button>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-                  <span className="text-xs font-semibold text-muted">Durum:</span>
+                  <span className="text-xs font-semibold text-muted">Status:</span>
                   {STATUSES.map(([k, l]) => (
                     <button key={k} disabled={busy === o.id || o.status === k}
                       className={`badge ${o.status === k ? "bg-pine-100 text-pine-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                       onClick={() => setStatus(o.id, k)}>{l}</button>
                   ))}
-                  <input className="input ml-auto max-w-xs !py-1 text-xs" placeholder="Not (panel sipariş no vb.) — Enter ile kaydet"
+                  <button className="badge bg-gray-100 text-gray-600 hover:bg-gray-200" disabled={busy === o.id || !o.providerOrderId} onClick={() => refill(o.id)}>Refill</button>
+                  <input className="input ml-auto max-w-xs !py-1 text-xs" placeholder="Note, then Enter"
                     defaultValue={o.notes}
                     onKeyDown={e => { if (e.key === "Enter") saveNotes(o.id, (e.target as HTMLInputElement).value); }} />
                 </div>

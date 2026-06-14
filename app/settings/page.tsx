@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const s = await getSettings();
   return (
     <div>
-      <PageHeader title="Ayarlar" sub="Para birimi, kur tablosu ve genel stok koruma kuralı." />
+      <PageHeader title="App Ayarlari" sub="Logo, renkler, para birimi, kur tablosu ve stok koruma kurali." />
       <SettingsClient settings={s} />
     </div>
   );

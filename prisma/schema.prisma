@@ -176,22 +176,127 @@ model SmmOrder {
   id                String   @id @default(cuid())
   shopifyOrderId    String
   shopifyOrderName  String?
+  shopifyLineItemId String?
   customerJson      String   @default("{}")
   productTitle      String
   variantLabel      String?
   optionsJson       String   @default("{}")
   targetLink        String?
+  platform          String?
+  serviceType       String?
+  country           String?
+  gender            String?
+  speed             String?
+  quality           String?
   quantity          Int      @default(1)
   refill            String?
+  refillDays        Int?
+  refillValidUntil  DateTime?
+  providerId        String?
   providerServiceId String?
+  providerOrderId   String?
+  providerStatus    String?
+  startCount        Int?
+  remains           Int?
+  mappingId         String?
   status            String   @default("pending")
   notes             String?
   providerResponse  String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  @@unique([shopifyOrderId, shopifyLineItemId])
   @@index([status])
   @@index([createdAt])
+  @@index([providerId])
+  @@index([providerOrderId])
+}
+
+model SmmProvider {
+  id            String               @id @default(cuid())
+  name          String
+  baseUrl       String
+  apiKeyEnc     String
+  active        Boolean              @default(true)
+  status        String               @default("unknown")
+  healthMessage String?
+  balance       Float?
+  currency      String?
+  lastCheckedAt DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  services      SmmProviderService[]
+  mappings      SmmServiceMapping[]
+
+  @@index([active])
+}
+
+model SmmProviderService {
+  id                String      @id @default(cuid())
+  providerId        String
+  provider          SmmProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  providerServiceId String
+  name              String
+  category          String?
+  platform          String?
+  serviceType       String?
+  rate              Float       @default(0)
+  min               Int?
+  max               Int?
+  refillSupported   Boolean     @default(false)
+  rawJson           String      @default("{}")
+  active            Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([providerId, providerServiceId])
+  @@index([platform])
+  @@index([serviceType])
+}
+
+model SmmServiceMapping {
+  id                String       @id @default(cuid())
+  shopifyProductId  String
+  shopifyVariantId  String?
+  platform          String
+  serviceType       String
+  country           String?
+  gender            String?
+  refillDays        Int?
+  speed             String?
+  quality           String?
+  minQuantity       Int          @default(1)
+  maxQuantity       Int          @default(1000000)
+  providerId        String
+  provider          SmmProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  providerServiceId String
+  costPer1000       Float        @default(0)
+  salePricePer1000  Float        @default(0)
+  active            Boolean      @default(true)
+  priority          Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([shopifyProductId])
+  @@index([shopifyVariantId])
+  @@index([platform, serviceType])
+  @@index([active, priority])
+}
+
+model SmmRefillRequest {
+  id               String   @id @default(cuid())
+  smmOrderId       String
+  providerId       String?
+  providerOrderId  String?
+  providerResponse String?
+  status           String   @default("pending")
+  requestedBy      String   @default("admin")
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([smmOrderId])
+  @@index([status])
 }
 
 model AutomationConfig {

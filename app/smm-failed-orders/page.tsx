@@ -4,11 +4,15 @@ import SmmOrdersClient from "@/components/SmmOrdersClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function SmmOrdersPage() {
-  const orders = await prisma.smmOrder.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
+export default async function SmmFailedOrdersPage() {
+  const orders = await prisma.smmOrder.findMany({
+    where: { status: { in: ["failed", "manual_review"] } },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
   return (
     <div>
-      <PageHeader title="SMM Orders" sub="Paid Shopify SMM line items, provider submission results, status sync, and manual recovery." />
+      <PageHeader title="Failed Orders" sub="SMM orders that need a mapping fix, valid target link, or provider retry." />
       <SmmOrdersClient orders={orders.map(o => ({
         id: o.id, shopifyOrderName: o.shopifyOrderName ?? o.shopifyOrderId, productTitle: o.productTitle,
         variantLabel: o.variantLabel, targetLink: o.targetLink, quantity: o.quantity, refill: o.refill,
