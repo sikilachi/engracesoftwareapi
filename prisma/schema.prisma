@@ -14,11 +14,11 @@ datasource db {
 model Supplier {
   id            String    @id @default(cuid())
   name          String
-  type          String    // kinguin | g2a | smm | custom
+  type          String // kinguin | g2a | smm | custom
   baseUrl       String
-  apiKeyEnc     String    // AES-256-GCM ile şifreli
+  apiKeyEnc     String // AES-256-GCM ile şifreli
   apiSecretEnc  String?
-  configJson    String?   // konnektöre özel ayarlar (JSON)
+  configJson    String? // konnektöre özel ayarlar (JSON)
   status        String    @default("unknown") // ok | error | unknown
   healthMessage String?
   lastSyncAt    DateTime?
@@ -76,37 +76,43 @@ model Product {
   lastSyncedAt           DateTime?
   createdAt              DateTime  @default(now())
 
-  reviews    Review[]
+  reviews Review[]
 
   @@unique([supplierId, supplierProductId])
   @@index([state])
   @@index([platform])
   @@index([supplierCategory])
+  @@index([supplierId])
+  @@index([lastFetchedAt])
+  @@index([shopifyProductId])
+  @@index([stockChanged])
+  @@index([priceChanged])
+  @@index([createdAt])
 }
 
 model CategoryMapping {
-  id                String  @id @default(cuid())
+  id                String   @id @default(cuid())
   supplierId        String?
   supplierCategory  String
   shopifyCollection String
-  autoTagsJson      String  @default("[]")
+  autoTagsJson      String   @default("[]")
   createdAt         DateTime @default(now())
 }
 
 model PriceRule {
-  id                  String  @id @default(cuid())
+  id                  String   @id @default(cuid())
   name                String
   scope               String
   supplierId          String?
   category            String?
   productId           String?
-  markupType          String  @default("percent")
-  markupValue         Float   @default(30)
-  minProfit           Float   @default(0)
-  rounding            String  @default("charm99")
+  markupType          String   @default("percent")
+  markupValue         Float    @default(30)
+  minProfit           Float    @default(0)
+  rounding            String   @default("charm99")
   compareAtMultiplier Float?
-  priority            Int     @default(0)
-  active              Boolean @default(true)
+  priority            Int      @default(0)
+  active              Boolean  @default(true)
   createdAt           DateTime @default(now())
 }
 
@@ -120,6 +126,9 @@ model SyncJob {
   detail     String?
   createdAt  DateTime  @default(now())
   finishedAt DateTime?
+
+  @@index([createdAt])
+  @@index([status])
 }
 
 model LogEntry {
@@ -132,21 +141,21 @@ model LogEntry {
 }
 
 model SmmGroup {
-  id                 String   @id @default(cuid())
+  id                 String            @id @default(cuid())
   title              String
   platform           String
   descriptionHtml    String?
-  requiredFieldsJson String   @default("[\"Hedef Link\"]")
+  requiredFieldsJson String            @default("[\"Hedef Link\"]")
   shopifyProductId   String?
-  status             String   @default("draft")
+  status             String            @default("draft")
   logoUrl            String?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime          @default(now())
   variants           SmmVariant[]
   automation         AutomationConfig?
 }
 
 model SmmVariant {
-  id                String  @id @default(cuid())
+  id                String   @id @default(cuid())
   groupId           String
   group             SmmGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   label             String
@@ -178,14 +187,17 @@ model SmmOrder {
   providerResponse  String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 model AutomationConfig {
-  id             String   @id @default(cuid())
-  smmGroupId     String   @unique
-  group          SmmGroup @relation(fields: [smmGroupId], references: [id], onDelete: Cascade)
-  enabled        Boolean  @default(false)
-  mode           String   @default("manual_approval")
+  id             String    @id @default(cuid())
+  smmGroupId     String    @unique
+  group          SmmGroup  @relation(fields: [smmGroupId], references: [id], onDelete: Cascade)
+  enabled        Boolean   @default(false)
+  mode           String    @default("manual_approval")
   supplierId     String?
   lastTestAt     DateTime?
   lastTestResult String?

@@ -6,7 +6,7 @@ import { shopifyConfigured } from "@/lib/shopify";
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
-  const [total, published, review, missingImg, stockCh, priceCh, suppliers, jobs, failedJobs, pendingSmm, products] = await Promise.all([
+  const [total, published, review, missingImg, stockCh, priceCh, suppliers, jobs, failedJobs, pendingSmm, marginAgg] = await Promise.all([
     prisma.product.count(),
     prisma.product.count({ where: { state: "published" } }),
     prisma.product.count({ where: { state: "fetched" } }),
@@ -17,10 +17,13 @@ export default async function Dashboard() {
     prisma.syncJob.findMany({ orderBy: { createdAt: "desc" }, take: 6 }),
     prisma.syncJob.count({ where: { status: "failed" } }),
     prisma.smmOrder.count({ where: { status: "pending" } }),
-    prisma.product.findMany({ where: { sellingPrice: { not: null } }, select: { costPrice: true, sellingPrice: true, currency: true }, take: 2000 }),
+    prisma.product.aggregate({
+      where: { sellingPrice: { not: null } },
+      _sum: { sellingPrice: true, costPrice: true },
+    }),
   ]);
 
-  const totalMargin = products.reduce((acc, p) => acc + ((p.sellingPrice ?? 0) - p.costPrice), 0);
+  const totalMargin = (marginAgg._sum.sellingPrice ?? 0) - (marginAgg._sum.costPrice ?? 0);
 
   return (
     <div>
