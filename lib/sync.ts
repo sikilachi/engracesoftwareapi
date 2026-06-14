@@ -104,13 +104,14 @@ export async function fetchFromSupplier(supplierId: string, opts?: { pages?: num
   const supplier = await prisma.supplier.findUniqueOrThrow({ where: { id: supplierId } });
   const connector = getConnector(supplier.type);
   const ctx = ctxFromSupplier(supplier);
+  const newestSortBy = typeof ctx.config?.newestSortBy === "string" ? ctx.config.newestSortBy : "updatedAt";
   const job = await startJob("fetch");
   let success = 0, failed = 0;
 
   try {
     const pages = opts?.pages ?? 1;
     for (let page = 1; page <= pages; page++) {
-      const items = await connector.fetchProducts(ctx, { page, limit: opts?.limit ?? 100 });
+      const items = await connector.fetchProducts(ctx, { page, limit: opts?.limit ?? 100, sortBy: newestSortBy, sortType: "desc" });
       if (items.length === 0) break;
       for (const item of items) {
         try {
@@ -225,9 +226,11 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
   const manualCollections = jget<string[]>(p.collectionsJson, []);
   const collectionTitles = Array.from(new Set([...manualCollections, ...mapped.map(m => m.shopifyCollection)]));
   const autoTags = mapped.flatMap(m => jget<string[]>(m.autoTagsJson, []));
+  const collectionRuleTags = collectionTitles.map(t => t.trim()).filter(Boolean);
 
   const tags = Array.from(new Set([
     ...jget<string[]>(p.tagsJson, []),
+    ...collectionRuleTags,
     ...autoTags,
     p.supplier.name,
     ...(p.platform ? [p.platform] : []),
@@ -291,10 +294,21 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
       { key: "license_type", value: p.licenseType ?? "" },
       { key: "delivery_type", value: p.deliveryType ?? "" },
       { key: "edition", value: p.edition ?? "" },
+      { key: "collections", namespace: "engrace", type: "list.single_line_text_field", value: JSON.stringify(collectionTitles) },
+      { key: "collection_tags", namespace: "engrace", type: "list.single_line_text_field", value: JSON.stringify(collectionRuleTags) },
     ],
     templateSuffix: /smm/i.test(p.deliveryType ?? "") ? null : "srd-digital",
     existingShopifyId: p.shopifyProductId,
   });
+
+  try {
+    await setMetafields(result.productId, [
+      { namespace: "engrace", key: "collections", type: "list.single_line_text_field", value: JSON.stringify(collectionTitles) },
+      { namespace: "engrace", key: "collection_tags", type: "list.single_line_text_field", value: JSON.stringify(collectionRuleTags) },
+    ]);
+  } catch (e: any) {
+    await log("shopify", `Koleksiyon metafield yazilamadi (${p.title}): ${e.message}`, "warn");
+  }
 
   // srd.* metafield'larını garanti yaz (productSet tanımsızları düşürebiliyor)
   if (!/smm/i.test(p.deliveryType ?? "")) {

@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 const LINKS = [
+  ["/catalog", "Katalog Gez"],
   ["/", "Dashboard"], ["/suppliers", "Tedarikçiler"], ["/products", "Ürünler"],
   ["/mapping", "Kategori Eşleme"], ["/price-rules", "Fiyat Kuralları"],
   ["/smm", "SMM Ürünleri"], ["/smm-orders", "SMM Siparişleri"],
