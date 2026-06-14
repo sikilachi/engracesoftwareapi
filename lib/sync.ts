@@ -215,8 +215,36 @@ export async function restockProduct(productId: string) {
 }
 
 // ── Shopify'a yayınla / güncelle ──────────────────────────────
-export async function publishToShopify(productId: string, statusOverride?: "draft" | "active") {
+type PublishOptions = {
+  sku?: string;
+  vendor?: string;
+  templateSuffix?: string | null;
+  requiresShipping?: boolean;
+  trackInventory?: boolean;
+  saveOptions?: boolean;
+};
+
+export async function publishToShopify(productId: string, statusOverride?: "draft" | "active", options: PublishOptions = {}) {
   const p = await prisma.product.findUniqueOrThrow({ where: { id: productId }, include: { supplier: true } });
+  const publishSku = options.sku ?? p.sku ?? `${p.supplier.type.toUpperCase()}-${p.supplierProductId}`;
+  const publishVendor = options.vendor ?? p.supplier.name;
+  const publishRequiresShipping = options.requiresShipping ?? p.requiresShipping;
+  const publishTrackInventory = options.trackInventory ?? p.trackInventory;
+  const publishTemplateSuffix = options.templateSuffix !== undefined
+    ? (options.templateSuffix || null)
+    : (/smm/i.test(p.deliveryType ?? "") ? null : "srd-digital");
+
+  if (options.saveOptions) {
+    await prisma.product.update({
+      where: { id: productId },
+      data: {
+        sku: publishSku,
+        requiresShipping: publishRequiresShipping,
+        trackInventory: publishTrackInventory,
+        manuallyEdited: true,
+      },
+    });
+  }
 
   // fiyat ve stok güncel değilse hesapla
   const priceRes = await repriceProduct(productId);
@@ -275,16 +303,16 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
   const result = await publishProduct({
     title: p.title,
     descriptionHtml: buildDescriptionHtml(p),
-    vendor: p.supplier.name,
+    vendor: publishVendor,
     productType: p.supplierCategory ?? "Digital",
     tags,
     status: (statusOverride ?? p.publishStatus) === "active" ? "ACTIVE" : "DRAFT",
-    sku: p.sku ?? `${p.supplier.type.toUpperCase()}-${p.supplierProductId}`,
+    sku: publishSku,
     price: priceRes.price,
     compareAtPrice: priceRes.compareAt,
     inventoryQty: qty,
-    trackInventory: p.trackInventory,
-    requiresShipping: p.requiresShipping,
+    trackInventory: publishTrackInventory,
+    requiresShipping: publishRequiresShipping,
     images: jget<string[]>(p.imagesJson, []),
     seoTitle: p.seoTitle,
     seoDescription: p.seoDescription,
@@ -300,12 +328,12 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
       { key: "license_type", value: p.licenseType ?? "" },
       { key: "delivery_type", value: p.deliveryType ?? "" },
       { key: "edition", value: p.edition ?? "" },
-      { key: "requires_shipping", type: "boolean", value: String(p.requiresShipping) },
-      { key: "track_inventory", type: "boolean", value: String(p.trackInventory) },
+      { key: "requires_shipping", type: "boolean", value: String(publishRequiresShipping) },
+      { key: "track_inventory", type: "boolean", value: String(publishTrackInventory) },
       { key: "collections", namespace: "engrace", type: "list.single_line_text_field", value: JSON.stringify(collectionTitles) },
       { key: "collection_tags", namespace: "engrace", type: "list.single_line_text_field", value: JSON.stringify(collectionRuleTags) },
     ],
-    templateSuffix: /smm/i.test(p.deliveryType ?? "") ? null : "srd-digital",
+    templateSuffix: publishTemplateSuffix,
     existingShopifyId: p.shopifyProductId,
   });
 

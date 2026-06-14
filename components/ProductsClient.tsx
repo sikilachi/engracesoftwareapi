@@ -14,6 +14,14 @@ type P = {
 };
 
 const uniq = (arr: (string | null)[]) => Array.from(new Set(arr.filter(Boolean))) as string[];
+const defaultPublishOptions = {
+  skuStart: "MM1001",
+  vendor: "",
+  templateSuffix: "srd-digital",
+  requiresShipping: false,
+  trackInventory: true,
+  saveOptions: true,
+};
 
 export default function ProductsClient({ products, suppliers, allCategories = [], allPlatforms = [] }: {
   products: P[];
@@ -34,6 +42,8 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [publishPanel, setPublishPanel] = useState<null | { status: "draft" | "active" }>(null);
+  const [publishOptions, setPublishOptions] = useState(defaultPublishOptions);
 
   const localCategories = useMemo(() => uniq(products.map(p => p.category)), [products]);
   const localPlatforms = useMemo(() => uniq(products.map(p => p.platform)), [products]);
@@ -113,6 +123,35 @@ export default function ProductsClient({ products, suppliers, allCategories = []
     ].join("\n");
   }
 
+  function openPublish(status: "draft" | "active") {
+    const first = selectedProducts[0];
+    setPublishOptions(o => ({ ...o, vendor: o.vendor || first?.supplierName || "" }));
+    setPublishPanel({ status });
+  }
+
+  async function publishFromPanel() {
+    if (!publishPanel) return;
+    setBusy("publish"); setMsg(null);
+    const res = await fetch("/api/products/publish", {
+      method: "POST",
+      body: JSON.stringify({ ids, status: publishPanel.status, options: publishOptions }),
+    });
+    const data = await res.json();
+    setBusy(null);
+    setPublishPanel(null);
+    setMsg(res.ok ? `YayÄ±n: ${data.success} âœ“ / ${data.failed} âœ— ${data.errors?.[0] ? "â€” " + data.errors[0] : ""}` : data.error);
+    router.refresh();
+  }
+
+  function skuAt(index: number) {
+    const raw = publishOptions.skuStart.trim();
+    if (!raw) return selectedProducts[index]?.sku ?? "-";
+    const match = raw.match(/^(.*?)(\d+)$/);
+    if (!match) return index === 0 ? raw : `${raw}-${index + 1}`;
+    const [, prefix, digits] = match;
+    return `${prefix}${String(Number(digits) + index).padStart(digits.length, "0")}`;
+  }
+
   async function sync(what: "stock" | "price" | "both", all = false) {
     setBusy("sync" + what); setMsg(null);
     const res = await fetch("/api/sync", { method: "POST", body: JSON.stringify(all ? { all: true, what } : { ids, what }) });
@@ -182,8 +221,8 @@ export default function ProductsClient({ products, suppliers, allCategories = []
         <div className="sticky top-2 z-20 mb-4 card !bg-pine-950 !border-pine-900 p-3 text-white shadow-pop">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-bold mr-1">{sel.size} seçili</span>
-            <button className="btn bg-pine-600 hover:bg-pine-500 text-white" disabled={!!busy} onClick={() => publish("draft")}>Taslak yayınla</button>
-            <button className="btn bg-pine-600 hover:bg-pine-500 text-white" disabled={!!busy} onClick={() => publish("active")}>Aktif yayınla</button>
+            <button className="btn bg-pine-600 hover:bg-pine-500 text-white" disabled={!!busy} onClick={() => openPublish("draft")}>Taslak yayınla</button>
+            <button className="btn bg-pine-600 hover:bg-pine-500 text-white" disabled={!!busy} onClick={() => openPublish("active")}>Aktif yayınla</button>
             <button className="btn bg-white/10 hover:bg-white/20 text-white" disabled={!!busy} onClick={() => sync("stock")}>Stok senkronu</button>
             <button className="btn bg-white/10 hover:bg-white/20 text-white" disabled={!!busy} onClick={() => sync("price")}>Fiyat senkronu</button>
             <button className="btn bg-white/10 hover:bg-white/20 text-white" disabled={!!busy} onClick={() => sync("both")}>Stok + fiyat</button>
@@ -206,6 +245,75 @@ export default function ProductsClient({ products, suppliers, allCategories = []
         <button className="btn-ghost" disabled={!!busy} onClick={() => sync("stock", true)}>Tüm katalog: stok senkronu</button>
         <button className="btn-ghost" disabled={!!busy} onClick={() => sync("both", true)}>Tüm katalog: stok + fiyat</button>
       </div>
+
+      {publishPanel && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <div className="w-full max-w-4xl overflow-hidden rounded-lg border border-line bg-white shadow-pop">
+            <div className="border-b border-line px-5 py-4">
+              <h2 className="text-base font-bold">Shopify yayin ayarlari</h2>
+              <p className="text-xs text-muted">{ids.length} urun {publishPanel.status === "active" ? "aktif" : "taslak"} olarak gonderilecek.</p>
+            </div>
+            <div className="grid max-h-[70vh] gap-4 overflow-y-auto p-5 lg:grid-cols-[280px_1fr]">
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Baslangic SKU</label>
+                  <input className="input" value={publishOptions.skuStart} onChange={e => setPublishOptions(o => ({ ...o, skuStart: e.target.value }))} placeholder="MM1001" />
+                </div>
+                <div>
+                  <label className="label">Satici / Vendor</label>
+                  <input className="input" value={publishOptions.vendor} onChange={e => setPublishOptions(o => ({ ...o, vendor: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Template</label>
+                  <select className="input" value={publishOptions.templateSuffix} onChange={e => setPublishOptions(o => ({ ...o, templateSuffix: e.target.value }))}>
+                    <option value="srd-digital">srd-digital</option>
+                    <option value="">Shopify varsayilan template</option>
+                  </select>
+                </div>
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm">
+                  <span>Fiziksel urun / kargo gerekir</span>
+                  <input type="checkbox" checked={publishOptions.requiresShipping} onChange={e => setPublishOptions(o => ({ ...o, requiresShipping: e.target.checked }))} className="h-4 w-4 accent-pine-600" />
+                </label>
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm">
+                  <span>Shopify envanter takip etsin</span>
+                  <input type="checkbox" checked={publishOptions.trackInventory} onChange={e => setPublishOptions(o => ({ ...o, trackInventory: e.target.checked }))} className="h-4 w-4 accent-pine-600" />
+                </label>
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-sm">
+                  <span>Bu ayarlari urunlere kaydet</span>
+                  <input type="checkbox" checked={publishOptions.saveOptions} onChange={e => setPublishOptions(o => ({ ...o, saveOptions: e.target.checked }))} className="h-4 w-4 accent-pine-600" />
+                </label>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-line">
+                <table className="w-full text-sm">
+                  <thead className="bg-pine-50/60">
+                    <tr><th className="th">Urun</th><th className="th">SKU</th><th className="th">Tip</th><th className="th">Envanter</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {selectedProducts.slice(0, 20).map((p, i) => (
+                      <tr key={p.id}>
+                        <td className="td">
+                          <p className="font-semibold line-clamp-1">{p.title}</p>
+                          <p className="text-[11px] text-muted">{publishOptions.vendor || p.supplierName} · {publishOptions.templateSuffix || "default"}</p>
+                        </td>
+                        <td className="td font-mono text-xs">{skuAt(i)}</td>
+                        <td className="td text-xs">{publishOptions.requiresShipping ? "Fiziksel" : "Dijital"}</td>
+                        <td className="td text-xs">{publishOptions.trackInventory ? "Takip" : "Takip yok"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {selectedProducts.length > 20 && <p className="border-t border-line p-3 text-xs text-muted">Ilk 20 urun gosteriliyor, toplam {selectedProducts.length} urun uygulanacak.</p>}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-4">
+              <button className="btn-ghost" disabled={busy === "publish"} onClick={() => setPublishPanel(null)}>Iptal</button>
+              <button className="btn-primary" disabled={busy === "publish"} onClick={publishFromPanel}>
+                {busy === "publish" ? "Yayinlaniyor..." : "Uygula ve yayinla"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <Empty title={products.length === 0 ? "Filtre seçin" : "Ürün bulunamadı"} hint={products.length === 0 ? "Yukarıdan tedarikçi veya kategori seç — ürünler anında yüklenir." : "Filtreleri temizle veya Tedarikçiler sayfasından ürün çek."} />
