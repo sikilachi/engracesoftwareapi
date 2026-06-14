@@ -13,14 +13,26 @@ type P = {
   requiresShipping: boolean; trackInventory: boolean; priceChanged: boolean; stockChanged: boolean;
 };
 
+type Publication = { id: string; name: string; autoPublish?: boolean };
+type PublishOptions = {
+  skuStart: string;
+  vendor: string;
+  templateSuffix: string;
+  requiresShipping: boolean;
+  trackInventory: boolean;
+  saveOptions: boolean;
+  publicationIds: string[];
+};
+
 const uniq = (arr: (string | null)[]) => Array.from(new Set(arr.filter(Boolean))) as string[];
-const defaultPublishOptions = {
+const defaultPublishOptions: PublishOptions = {
   skuStart: "MM1001",
   vendor: "",
   templateSuffix: "srd-digital",
   requiresShipping: false,
   trackInventory: true,
   saveOptions: true,
+  publicationIds: [],
 };
 
 export default function ProductsClient({ products, suppliers, allCategories = [], allPlatforms = [] }: {
@@ -44,6 +56,9 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   const [msg, setMsg] = useState<string | null>(null);
   const [publishPanel, setPublishPanel] = useState<null | { status: "draft" | "active" }>(null);
   const [publishOptions, setPublishOptions] = useState(defaultPublishOptions);
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [pubLoading, setPubLoading] = useState(false);
+  const [pubError, setPubError] = useState<string | null>(null);
 
   const localCategories = useMemo(() => uniq(products.map(p => p.category)), [products]);
   const localPlatforms = useMemo(() => uniq(products.map(p => p.platform)), [products]);
@@ -127,6 +142,25 @@ export default function ProductsClient({ products, suppliers, allCategories = []
     const first = selectedProducts[0];
     setPublishOptions(o => ({ ...o, vendor: o.vendor || first?.supplierName || "" }));
     setPublishPanel({ status });
+    loadPublications();
+  }
+
+  async function loadPublications() {
+    if (publications.length || pubLoading) return;
+    setPubLoading(true); setPubError(null);
+    const res = await fetch("/api/shopify/publications");
+    const data = await res.json().catch(() => ({}));
+    setPubLoading(false);
+    if (!res.ok) {
+      setPubError(data.error ?? "Satis kanallari alinamadi");
+      return;
+    }
+    const pubs = data.publications ?? [];
+    setPublications(pubs);
+    setPublishOptions(o => ({
+      ...o,
+      publicationIds: o.publicationIds.length ? o.publicationIds : pubs.map((p: Publication) => p.id),
+    }));
   }
 
   async function publishFromPanel() {
@@ -282,11 +316,49 @@ export default function ProductsClient({ products, suppliers, allCategories = []
                   <span>Bu ayarlari urunlere kaydet</span>
                   <input type="checkbox" checked={publishOptions.saveOptions} onChange={e => setPublishOptions(o => ({ ...o, saveOptions: e.target.checked }))} className="h-4 w-4 accent-pine-600" />
                 </label>
+                <div className="rounded-lg border border-line p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Satis kanallari</p>
+                    {publications.length > 0 && (
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-pine-700 hover:underline"
+                        onClick={() => setPublishOptions(o => ({
+                          ...o,
+                          publicationIds: o.publicationIds.length === publications.length ? [] : publications.map(p => p.id),
+                        }))}
+                      >
+                        {publishOptions.publicationIds.length === publications.length ? "Tumunu kapat" : "Tumunu sec"}
+                      </button>
+                    )}
+                  </div>
+                  {pubLoading && <p className="text-xs text-muted">Kanallar yukleniyor...</p>}
+                  {pubError && <p className="text-xs text-danger">{pubError}</p>}
+                  {!pubLoading && !pubError && publications.length === 0 && <p className="text-xs text-muted">Satis kanali bulunamadi.</p>}
+                  <div className="space-y-2">
+                    {publications.map(pub => (
+                      <label key={pub.id} className="flex items-center justify-between gap-3 rounded-md bg-gray-50 px-2.5 py-2 text-sm">
+                        <span>{pub.name}</span>
+                        <input
+                          type="checkbox"
+                          checked={publishOptions.publicationIds.includes(pub.id)}
+                          onChange={e => setPublishOptions(o => ({
+                            ...o,
+                            publicationIds: e.target.checked
+                              ? Array.from(new Set([...o.publicationIds, pub.id]))
+                              : o.publicationIds.filter(id => id !== pub.id),
+                          }))}
+                          className="h-4 w-4 accent-pine-600"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="overflow-hidden rounded-lg border border-line">
                 <table className="w-full text-sm">
                   <thead className="bg-pine-50/60">
-                    <tr><th className="th">Urun</th><th className="th">SKU</th><th className="th">Tip</th><th className="th">Envanter</th></tr>
+                    <tr><th className="th">Urun</th><th className="th">SKU</th><th className="th">Tip</th><th className="th">Envanter</th><th className="th">Kanal</th></tr>
                   </thead>
                   <tbody className="divide-y divide-line">
                     {selectedProducts.slice(0, 20).map((p, i) => (
@@ -298,6 +370,7 @@ export default function ProductsClient({ products, suppliers, allCategories = []
                         <td className="td font-mono text-xs">{skuAt(i)}</td>
                         <td className="td text-xs">{publishOptions.requiresShipping ? "Fiziksel" : "Dijital"}</td>
                         <td className="td text-xs">{publishOptions.trackInventory ? "Takip" : "Takip yok"}</td>
+                        <td className="td text-xs">{publishOptions.publicationIds.length || "-"}</td>
                       </tr>
                     ))}
                   </tbody>

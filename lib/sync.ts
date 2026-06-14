@@ -6,7 +6,7 @@ import { getSettings, type StockRule } from "./settings";
 import { computeShopifyStock } from "./stock";
 import { computePrice, resolveRule } from "./pricing";
 import { jget, jput } from "./json";
-import { publishProduct, setMetafields, updateVariantPrice, getVariantInventoryItem, setInventory, ensureCollection, addToCollections, shopifyConfigured } from "./shopify";
+import { publishProduct, setMetafields, updateVariantPrice, getVariantInventoryItem, setInventory, ensureCollection, addToCollections, publishToPublications, shopifyConfigured } from "./shopify";
 
 // ── Açıklama HTML temizle + özellik tablosu ekle ─────────────
 function cleanHtml(html: string): string {
@@ -221,6 +221,7 @@ type PublishOptions = {
   templateSuffix?: string | null;
   requiresShipping?: boolean;
   trackInventory?: boolean;
+  publicationIds?: string[];
   saveOptions?: boolean;
 };
 
@@ -347,6 +348,14 @@ export async function publishToShopify(productId: string, statusOverride?: "draf
   }
 
   // srd.* metafield'larını garanti yaz (productSet tanımsızları düşürebiliyor)
+  if (options.publicationIds?.length) {
+    try {
+      await publishToPublications(result.productId, options.publicationIds);
+    } catch (e: any) {
+      await log("shopify", `Satis kanali hatasi (${p.title}): ${e.message}`, "warn");
+    }
+  }
+
   if (!/smm/i.test(p.deliveryType ?? "")) {
     try {
       await setMetafields(result.productId, srd);

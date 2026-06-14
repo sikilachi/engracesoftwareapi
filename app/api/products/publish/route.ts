@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
         templateSuffix: options.templateSuffix ?? undefined,
         requiresShipping: typeof options.requiresShipping === "boolean" ? options.requiresShipping : undefined,
         trackInventory: typeof options.trackInventory === "boolean" ? options.trackInventory : undefined,
+        publicationIds: Array.isArray(options.publicationIds) ? options.publicationIds : undefined,
         saveOptions: Boolean(options.saveOptions),
       });
       success++;

@@ -84,6 +84,34 @@ export async function addToCollections(productId: string, collectionIds: string[
   }
 }
 
+export type Publication = { id: string; name: string; autoPublish?: boolean };
+
+export async function listPublications(): Promise<Publication[]> {
+  const data = await gql<{ publications: { nodes: Publication[] } }>(
+    `query {
+      publications(first: 50) {
+        nodes { id name autoPublish }
+      }
+    }`
+  );
+  return data.publications.nodes;
+}
+
+export async function publishToPublications(productId: string, publicationIds: string[]) {
+  const ids = Array.from(new Set(publicationIds.filter(Boolean)));
+  if (!ids.length) return;
+  const data = await gql<{ publishablePublish: { userErrors: { field: string[]; message: string }[] } }>(
+    `mutation($id: ID!, $input: [PublicationInput!]!) {
+      publishablePublish(id: $id, input: $input) {
+        userErrors { field message }
+      }
+    }`,
+    { id: productId, input: ids.map(publicationId => ({ publicationId })) }
+  );
+  const errs = data.publishablePublish.userErrors;
+  if (errs?.length) throw new Error(`SatÄ±ÅŸ kanalÄ± hatasÄ±: ${errs.map(e => e.message).join("; ")}`);
+}
+
 function slugify(s: string): string {
   return s.toLowerCase()
     .replace(/[ğ]/g, "g").replace(/[ü]/g, "u").replace(/[ş]/g, "s")
