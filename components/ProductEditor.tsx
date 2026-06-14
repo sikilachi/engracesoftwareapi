@@ -17,7 +17,8 @@ type P = {
   currency: string; costPrice: number; sellingPrice: number | null; priceOverride: number | null;
   compareAtPrice: number | null; supplierStock: number; shopifyStock: number | null;
   syncPrice: boolean; syncStock: boolean; syncTitle: boolean; syncDescription: boolean;
-  syncImages: boolean; protectEdits: boolean; manuallyEdited: boolean;
+  syncImages: boolean; requiresShipping: boolean; trackInventory: boolean;
+  protectEdits: boolean; manuallyEdited: boolean;
   shopifyProductId: string | null; supplierName: string; supplierProductId: string;
   lastSyncedAt: string | null;
 };
@@ -63,7 +64,9 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
       collectionsJson: JSON.stringify(f.collections.split(",").map(s => s.trim()).filter(Boolean)),
       priceOverride: f.priceOverrideStr === "" ? null : Number(f.priceOverrideStr),
       syncPrice: f.syncPrice, syncStock: f.syncStock, syncTitle: f.syncTitle,
-      syncDescription: f.syncDescription, syncImages: f.syncImages, protectEdits: f.protectEdits,
+      syncDescription: f.syncDescription, syncImages: f.syncImages,
+      requiresShipping: f.requiresShipping, trackInventory: f.trackInventory,
+      protectEdits: f.protectEdits,
     };
     if (f.stockRule.trim()) {
       try { JSON.parse(f.stockRule); body.stockRuleJson = f.stockRule; }
@@ -76,6 +79,7 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
   }
 
   async function publish(status: "draft" | "active") {
+    if (!confirm(publishPreview(status))) return;
     setBusy("publish"); setMsg(null);
     const res = await fetch("/api/products/publish", { method: "POST", body: JSON.stringify({ ids: [product.id], status }) });
     const d = await res.json();
@@ -115,6 +119,24 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
 
   const images = f.images.split("\n").map(s => s.trim()).filter(Boolean);
   const meta = jparse<Record<string, unknown>>(product.metaJson, {});
+  const templateSuffix = /smm/i.test(f.deliveryType ?? "") ? "Shopify varsayilan template" : "srd-digital";
+  const productKind = f.requiresShipping ? "Fiziksel urun" : "Dijital urun / servis";
+  const inventoryMode = f.trackInventory ? "Envanter takip edilecek" : "Envanter takip edilmeyecek";
+  function publishPreview(status: "draft" | "active") {
+    return [
+      `Shopify'a ${status === "active" ? "AKTIF" : "TASLAK"} olarak gonderilecek.`,
+      "",
+      `Template: ${templateSuffix}`,
+      `Satici/Vendor: ${product.supplierName}`,
+      `Urun adi: ${f.title}`,
+      `SKU: ${f.sku || `${product.supplierName}-${product.supplierProductId}`}`,
+      `Tip: ${productKind}`,
+      `Envanter: ${inventoryMode}`,
+      `Shopify stok: ${f.trackInventory ? (f.shopifyStock ?? "hesaplanacak") : "yok"}`,
+      "",
+      "Devam edilsin mi?",
+    ].join("\n");
+  }
   const Toggle = ({ k, label }: { k: keyof typeof f; label: string }) => (
     <label className="flex items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2 text-sm">
       <span>{label}</span>
@@ -283,6 +305,21 @@ export default function ProductEditor({ product, suppliers }: { product: P; supp
             <Toggle k="protectEdits" label="Manuel düzenlemelerimi koru" />
             {product.manuallyEdited ? <p className="text-xs text-amber-700">Bu ürün manuel düzenlendi.</p> : null}
             {product.lastSyncedAt ? <p className="text-xs text-muted">Son senkron: {new Date(product.lastSyncedAt).toLocaleString("tr-TR")}</p> : null}
+          </div>
+
+          <div className="card space-y-3 p-5">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Shopify yayin onizleme</h2>
+            <div className="space-y-1.5 text-sm">
+              <p><span className="text-muted">Template:</span> <span className="font-semibold">{templateSuffix}</span></p>
+              <p><span className="text-muted">Satici:</span> <span className="font-semibold">{product.supplierName}</span></p>
+              <p><span className="text-muted">Urun adi:</span> <span className="font-semibold">{f.title}</span></p>
+              <p><span className="text-muted">SKU:</span> <span className="font-semibold">{f.sku || "-"}</span></p>
+              <p><span className="text-muted">Tip:</span> <span className="font-semibold">{productKind}</span></p>
+              <p><span className="text-muted">Envanter:</span> <span className="font-semibold">{inventoryMode}</span></p>
+            </div>
+            <Toggle k="requiresShipping" label="Fiziksel urun / kargo gerekir" />
+            <Toggle k="trackInventory" label="Shopify envanter takip etsin" />
+            <p className="text-xs text-muted">Degistirirsen once Kaydet, sonra yayinla.</p>
           </div>
 
           <button className="btn-primary w-full" disabled={busy !== null} onClick={save}>

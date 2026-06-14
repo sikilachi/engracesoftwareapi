@@ -68,6 +68,8 @@ model Product {
   syncTitle              Boolean   @default(true)
   syncDescription        Boolean   @default(true)
   syncImages             Boolean   @default(true)
+  requiresShipping       Boolean   @default(false)
+  trackInventory         Boolean   @default(true)
   protectEdits           Boolean   @default(false)
   manuallyEdited         Boolean   @default(false)
   priceChanged           Boolean   @default(false)

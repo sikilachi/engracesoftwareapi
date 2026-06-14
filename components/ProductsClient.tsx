@@ -10,7 +10,7 @@ type P = {
   deliveryType: string | null; cost: number; currency: string; price: number | null; compareAt: number | null;
   stock: number; shopifyStock: number | null; state: string; publishStatus: string;
   shopifyId: string | null; image: string | null; hasImage: boolean; hasDescription: boolean;
-  priceChanged: boolean; stockChanged: boolean;
+  requiresShipping: boolean; trackInventory: boolean; priceChanged: boolean; stockChanged: boolean;
 };
 
 const uniq = (arr: (string | null)[]) => Array.from(new Set(arr.filter(Boolean))) as string[];
@@ -68,6 +68,7 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   const toggleAll = () => setSel(allSel ? new Set() : new Set(filtered.map(p => p.id)));
   const toggle = (id: string) => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const ids = Array.from(sel);
+  const selectedProducts = filtered.filter(p => sel.has(p.id));
 
   async function bulk(action: string, payload?: any, confirmMsg?: string) {
     if (confirmMsg && !confirm(confirmMsg)) return;
@@ -80,13 +81,36 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   }
 
   async function publish(status: "draft" | "active") {
-    if (!confirm(`${ids.length} ürün Shopify'a "${status}" olarak gönderilecek. Devam?`)) return;
+    if (!confirm(publishPreview(status))) return;
     setBusy("publish"); setMsg(null);
     const res = await fetch("/api/products/publish", { method: "POST", body: JSON.stringify({ ids, status }) });
     const data = await res.json();
     setBusy(null);
     setMsg(res.ok ? `Yayın: ${data.success} ✓ / ${data.failed} ✗ ${data.errors?.[0] ? "— " + data.errors[0] : ""}` : data.error);
     router.refresh();
+  }
+
+  function productTemplate(p: P) {
+    return /smm/i.test(p.deliveryType ?? "") ? "Shopify varsayilan template" : "srd-digital";
+  }
+
+  function publishPreview(status: "draft" | "active") {
+    const lines = selectedProducts.slice(0, 10).map((p, i) => [
+      `${i + 1}. ${p.title}`,
+      `   Template: ${productTemplate(p)}`,
+      `   Satici: ${p.supplierName}`,
+      `   SKU: ${p.sku ?? "-"}`,
+      `   Tip: ${p.requiresShipping ? "Fiziksel urun" : "Dijital urun / servis"}`,
+      `   Envanter: ${p.trackInventory ? "Takip edilecek" : "Takip edilmeyecek"}`,
+    ].join("\n"));
+    return [
+      `${ids.length} urun Shopify'a ${status === "active" ? "AKTIF" : "TASLAK"} olarak gonderilecek.`,
+      "",
+      ...lines,
+      ...(ids.length > 10 ? [`... ve ${ids.length - 10} urun daha`] : []),
+      "",
+      "Devam edilsin mi?",
+    ].join("\n");
   }
 
   async function sync(what: "stock" | "price" | "both", all = false) {

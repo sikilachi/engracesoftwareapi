@@ -22,7 +22,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         currency: p.currency, costPrice: p.costPrice, sellingPrice: p.sellingPrice, priceOverride: p.priceOverride,
         compareAtPrice: p.compareAtPrice, supplierStock: p.supplierStock, shopifyStock: p.shopifyStock,
         syncPrice: p.syncPrice, syncStock: p.syncStock, syncTitle: p.syncTitle, syncDescription: p.syncDescription,
-        syncImages: p.syncImages, protectEdits: p.protectEdits, manuallyEdited: p.manuallyEdited,
+        syncImages: p.syncImages, requiresShipping: p.requiresShipping, trackInventory: p.trackInventory,
+        protectEdits: p.protectEdits, manuallyEdited: p.manuallyEdited,
         shopifyProductId: p.shopifyProductId, supplierName: p.supplier.name, supplierProductId: p.supplierProductId,
         lastSyncedAt: p.lastSyncedAt?.toISOString() ?? null,
       }}

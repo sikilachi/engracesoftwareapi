@@ -102,6 +102,8 @@ export type PublishInput = {
   price: number;
   compareAtPrice: number | null;
   inventoryQty: number;
+  trackInventory: boolean;
+  requiresShipping: boolean;
   images: string[];
   seoTitle?: string | null;
   seoDescription?: string | null;
@@ -143,14 +145,14 @@ export async function publishProduct(input: PublishInput): Promise<PublishResult
       sku: v.sku,
       price: String(v.price),
       optionValues: v.options.map((val, i) => ({ optionName: input.optionNames![i], name: val })),
-      inventoryItem: { tracked: false },
+      inventoryItem: { tracked: input.trackInventory, requiresShipping: input.requiresShipping },
     }));
   } else {
     productSetInput.variants = [{
       sku: input.sku,
       price: String(input.price),
       compareAtPrice: input.compareAtPrice != null ? String(input.compareAtPrice) : undefined,
-      inventoryItem: { tracked: true },
+      inventoryItem: { tracked: input.trackInventory, requiresShipping: input.requiresShipping },
       optionValues: [{ optionName: "Title", name: "Default Title" }],
     }];
     productSetInput.productOptions = [{ name: "Title", values: [{ name: "Default Title" }] }];
@@ -175,7 +177,7 @@ export async function publishProduct(input: PublishInput): Promise<PublishResult
   const productId = data.productSet.product.id;
 
   // Stok ayarla (tekli varyant, takipli ürünler)
-  if (!input.variants && data.productSet.product.variants.nodes[0]?.inventoryItem?.id) {
+  if (input.trackInventory && !input.variants && data.productSet.product.variants.nodes[0]?.inventoryItem?.id) {
     await setInventory(data.productSet.product.variants.nodes[0].inventoryItem.id, input.inventoryQty);
   }
 

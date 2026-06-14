@@ -6,7 +6,7 @@ const EDITABLE = [
   "platform","region","language","edition","licenseType","deliveryType","activationType",
   "supplierCategory","sku","seoTitle","seoDescription","publishStatus","state",
   "imagesJson","tagsJson","collectionsJson","stockRuleJson",
-  "syncPrice","syncStock","syncTitle","syncDescription","syncImages","protectEdits",
+  "syncPrice","syncStock","syncTitle","syncDescription","syncImages","requiresShipping","trackInventory","protectEdits",
 ];
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

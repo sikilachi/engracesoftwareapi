@@ -23,6 +23,8 @@ type ProductListRow = {
   compareAt: number | null;
   stock: number;
   shopifyStock: number | null;
+  requiresShipping: boolean;
+  trackInventory: boolean;
   state: string;
   publishStatus: string;
   shopifyId: string | null;
@@ -69,6 +71,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Rec
             p."compareAtPrice" AS "compareAt",
             p."supplierStock" AS "stock",
             p."shopifyStock",
+            p."requiresShipping",
+            p."trackInventory",
             p."state",
             p."publishStatus",
             p."shopifyProductId" AS "shopifyId",

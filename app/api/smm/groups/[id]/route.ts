@@ -78,6 +78,8 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
       price: variants[0].price,
       compareAtPrice: null,
       inventoryQty: 0,
+      trackInventory: false,
+      requiresShipping: false,
       images: g.logoUrl ? [`${process.env.APP_PUBLIC_URL ?? ""}${g.logoUrl}`].filter(u => u.startsWith("http")) : [],
       metafields: [
         { key: "smm_group_id", value: g.id },
