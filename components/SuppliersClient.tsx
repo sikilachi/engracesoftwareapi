@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "./ui";
+import LiveProgress from "./LiveProgress";
 
 type S = { id: string; name: string; type: string; baseUrl: string; status: string; healthMessage: string | null; lastSyncAt: string | null; productCount: number };
 
@@ -17,6 +18,7 @@ export default function SuppliersClient({ suppliers }: { suppliers: S[] }) {
   const [form, setForm] = useState({ name: "", type: "kinguin", baseUrl: DEFAULT_URLS.kinguin, apiKey: "", apiSecret: "", configJson: "" });
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState<null | { types: string[]; startedAt: string; label: string }>(null);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v, ...(k === "type" ? { baseUrl: DEFAULT_URLS[v] ?? "" } : {}) }));
 
@@ -40,16 +42,19 @@ export default function SuppliersClient({ suppliers }: { suppliers: S[] }) {
     } else if (kind === "test") {
       res = await fetch(`/api/suppliers/${id}/test`, { method: "POST" });
     } else {
+      setProgress({ types: ["fetch"], startedAt: new Date().toISOString(), label: "Ürün çekme" });
       res = await fetch(`/api/suppliers/${id}/fetch`, { method: "POST", body: JSON.stringify({ pages: 1, limit: 100 }) });
     }
     const data = await res.json().catch(() => ({}));
     setBusy(null);
+    if (kind === "fetch") setTimeout(() => setProgress(null), 1200);
     setMsg(kind === "test" ? data.message : kind === "fetch" ? `Çekildi: ${data.success ?? 0} ✓ / ${data.failed ?? 0} ✗` : "Silindi");
     router.refresh();
   }
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+      <LiveProgress active={!!progress} types={progress?.types ?? []} startedAt={progress?.startedAt ?? null} fallbackLabel={progress?.label} />
       <div className="space-y-3">
         {suppliers.length === 0 && (
           <div className="card p-8 text-center text-sm text-muted">Henüz tedarikçi yok. Sağdaki formdan ilkini ekle.</div>

@@ -94,6 +94,12 @@ export async function importNormalizedProducts(supplierId: string, items: any[])
 export async function startJob(type: string, total = 0) {
   return prisma.syncJob.create({ data: { type, total } });
 }
+export async function updateJob(id: string, success: number, failed: number, detail?: string) {
+  return prisma.syncJob.update({
+    where: { id },
+    data: { success, failed, detail },
+  });
+}
 export async function finishJob(id: string, success: number, failed: number, detail?: string) {
   return prisma.syncJob.update({
     where: { id },
@@ -107,13 +113,14 @@ export async function fetchFromSupplier(supplierId: string, opts?: { pages?: num
   const connector = getConnector(supplier.type);
   const ctx = ctxFromSupplier(supplier);
   const newestSortBy = typeof ctx.config?.newestSortBy === "string" ? ctx.config.newestSortBy : "updatedAt";
-  const job = await startJob("fetch");
+  const pages = opts?.pages ?? 1;
+  const limit = opts?.limit ?? 100;
+  const job = await startJob("fetch", pages * limit);
   let success = 0, failed = 0;
 
   try {
-    const pages = opts?.pages ?? 1;
     for (let page = 1; page <= pages; page++) {
-      const items = await connector.fetchProducts(ctx, { page, limit: opts?.limit ?? 100, sortBy: newestSortBy, sortType: "desc" });
+      const items = await connector.fetchProducts(ctx, { page, limit, sortBy: newestSortBy, sortType: "desc" });
       if (items.length === 0) break;
       for (const item of items) {
         try {
@@ -177,6 +184,7 @@ export async function fetchFromSupplier(supplierId: string, opts?: { pages?: num
           failed++;
           await log("sync", `Ürün upsert hatası: ${item.title}`, "error", { error: e.message });
         }
+        await updateJob(job.id, success, failed, `${supplier.name} - sayfa ${page}/${pages}`);
       }
     }
     await prisma.supplier.update({ where: { id: supplierId }, data: { lastSyncAt: new Date(), status: "ok", healthMessage: null } });
@@ -416,6 +424,7 @@ export async function syncProducts(productIds: string[], what: "stock" | "price"
       errors.push(e.message);
       await log("sync", `Senkron hatası (${id}): ${e.message}`, "error");
     }
+    await updateJob(job.id, success, failed);
   }
   await finishJob(job.id, success, failed, errors.slice(0, 5).join(" | "));
   return { success, failed, jobId: job.id };

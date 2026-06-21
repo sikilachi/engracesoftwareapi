@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge, Empty } from "./ui";
+import LiveProgress from "./LiveProgress";
 
 type P = {
   id: string; title: string; sku: string | null; supplierId: string; supplierName: string;
@@ -54,6 +55,7 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState<null | { types: string[]; startedAt: string; label: string }>(null);
   const [publishPanel, setPublishPanel] = useState<null | { status: "draft" | "active" }>(null);
   const [publishOptions, setPublishOptions] = useState(defaultPublishOptions);
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -108,9 +110,11 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   async function publish(status: "draft" | "active") {
     if (!confirm(publishPreview(status))) return;
     setBusy("publish"); setMsg(null);
+    setProgress({ types: ["publish"], startedAt: new Date().toISOString(), label: "Shopify yayını" });
     const res = await fetch("/api/products/publish", { method: "POST", body: JSON.stringify({ ids, status }) });
     const data = await res.json();
     setBusy(null);
+    setTimeout(() => setProgress(null), 1200);
     setMsg(res.ok ? `Yayın: ${data.success} ✓ / ${data.failed} ✗ ${data.errors?.[0] ? "— " + data.errors[0] : ""}` : data.error);
     router.refresh();
   }
@@ -166,12 +170,14 @@ export default function ProductsClient({ products, suppliers, allCategories = []
   async function publishFromPanel() {
     if (!publishPanel) return;
     setBusy("publish"); setMsg(null);
+    setProgress({ types: ["publish"], startedAt: new Date().toISOString(), label: "Shopify yayını" });
     const res = await fetch("/api/products/publish", {
       method: "POST",
       body: JSON.stringify({ ids, status: publishPanel.status, options: publishOptions }),
     });
     const data = await res.json();
     setBusy(null);
+    setTimeout(() => setProgress(null), 1200);
     setPublishPanel(null);
     setMsg(res.ok ? `YayÄ±n: ${data.success} âœ“ / ${data.failed} âœ— ${data.errors?.[0] ? "â€” " + data.errors[0] : ""}` : data.error);
     router.refresh();
@@ -188,9 +194,15 @@ export default function ProductsClient({ products, suppliers, allCategories = []
 
   async function sync(what: "stock" | "price" | "both", all = false) {
     setBusy("sync" + what); setMsg(null);
+    setProgress({
+      types: [what === "both" ? "full" : what],
+      startedAt: new Date().toISOString(),
+      label: what === "stock" ? "Stok senkronu" : what === "price" ? "Fiyat senkronu" : "Stok + fiyat senkronu",
+    });
     const res = await fetch("/api/sync", { method: "POST", body: JSON.stringify(all ? { all: true, what } : { ids, what }) });
     const data = await res.json();
     setBusy(null);
+    setTimeout(() => setProgress(null), 1200);
     setMsg(res.ok ? `Senkron: ${data.success} ✓ / ${data.failed} ✗` : data.error);
     router.refresh();
   }
@@ -199,6 +211,7 @@ export default function ProductsClient({ products, suppliers, allCategories = []
 
   return (
     <div>
+      <LiveProgress active={!!progress} types={progress?.types ?? []} startedAt={progress?.startedAt ?? null} fallbackLabel={progress?.label} />
       {/* Filtre çubuğu */}
       <div className="card p-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
